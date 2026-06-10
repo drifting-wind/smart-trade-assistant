@@ -1,0 +1,70 @@
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+
+spring:
+  application:
+    name: smart-trade-assistant
+  ai:
+    dashscope:
+      enabled: ${DASHSCOPE_ENABLED:false}
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+  threads:
+    virtual:
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+ai:
+  gateway:
+    cache-ttl: 10m
+    conversation-ttl: 2h
+    max-history-messages: 16
+    security:
+      enabled: ${AI_AUTH_ENABLED:true}
+      tokens: ${AI_GATEWAY_TOKENS:dev-token}
+    routing:
+      default-model: DEEPSEEK
+      fallback-order: DEEPSEEK,ALIBABA_BAILIAN
+      long-context-threshold: 4000
+    models:
+      deepseek:
+        provider: DEEPSEEK
+        enabled: ${DEEPSEEK_ENABLED:true}
+        base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+        path: ${DEEPSEEK_CHAT_PATH:/chat/completions}
+        api-key: ${DEEPSEEK_API_KEY:sk-abdf3e8d58fc4a089495260e5b397844}
+        model: ${DEEPSEEK_MODEL:deepseek-chat}
+        timeout: 60s
+        max-tokens: 4096
+        temperature: 0.3
+        weight: 1.0
+        capabilities: qa,reasoning,code,analysis
+      bailian:
+        provider: ALIBABA_BAILIAN
+        enabled: ${BAILIAN_ENABLED:true}
+        base-url: ${BAILIAN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+        path: ${BAILIAN_CHAT_PATH:/chat/completions}
+        api-key: ${BAILIAN_API_KEY:${DASHSCOPE_API_KEY:sk-0e1be25b97ed4d7793f199fbbc225b40}}
+        model: ${BAILIAN_MODEL:qwen-plus}
+        timeout: 60s
+        max-tokens: 4096
+        temperature: 0.4
+        weight: 1.0
+        capabilities: qa,long_context,process,planning,writing

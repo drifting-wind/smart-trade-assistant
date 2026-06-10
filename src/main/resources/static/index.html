@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>外贸销售商机工作台</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #667085;
+      --line: #d8dee8;
+      --blue: #175cd3;
+      --green: #16794c;
+      --amber: #b54708;
+      --red: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+    h1 { margin: 0; font-size: 22px; letter-spacing: 0; }
+    .health { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); }
+    .dot.ok { background: var(--green); }
+    .dot.bad { background: var(--red); }
+    main {
+      display: grid;
+      grid-template-columns: 390px minmax(0, 1fr);
+      gap: 16px;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    h2 { margin: 0 0 12px; font-size: 16px; }
+    label { display: block; margin: 11px 0 6px; color: var(--muted); font-size: 13px; }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      font: inherit;
+      background: #fff;
+    }
+    textarea { min-height: 145px; resize: vertical; line-height: 1.5; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 10px;
+      font: inherit;
+      font-weight: 700;
+      color: #fff;
+      background: var(--blue);
+      cursor: pointer;
+    }
+    button.secondary { background: var(--green); }
+    button.neutral { background: #475467; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfe;
+      min-height: 82px;
+    }
+    .metric .name { color: var(--muted); font-size: 12px; }
+    .metric .value { margin-top: 8px; font-size: 24px; font-weight: 800; }
+    .metric .small { margin-top: 6px; color: var(--muted); font-size: 12px; word-break: break-word; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+    .tab {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+    .tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+    pre {
+      margin: 0;
+      min-height: 480px;
+      max-height: calc(100vh - 260px);
+      overflow: auto;
+      padding: 14px;
+      border-radius: 8px;
+      background: #101828;
+      color: #edf3ff;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.55;
+      font-size: 13px;
+    }
+    .tasks {
+      display: grid;
+      gap: 8px;
+      max-height: calc(100vh - 260px);
+      overflow: auto;
+    }
+    .task {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+    .task-title { font-weight: 800; }
+    .task-meta { margin-top: 5px; color: var(--muted); font-size: 12px; }
+    .task ul { margin: 8px 0 0 18px; padding: 0; color: #344054; }
+    .hidden { display: none; }
+    @media (max-width: 980px) {
+      main { grid-template-columns: 1fr; }
+      .board { grid-template-columns: 1fr; }
+      .actions { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>外贸销售商机工作台</h1>
+    <div class="health"><span id="dot" class="dot"></span><span id="health">检测服务中...</span></div>
+  </header>
+
+  <main>
+    <section>
+      <h2>客户询盘</h2>
+      <div class="grid2">
+        <div>
+          <label for="customerName">联系人</label>
+          <input id="customerName" value="Ahmed Khan">
+        </div>
+        <div>
+          <label for="companyName">公司</label>
+          <input id="companyName" value="Gulf Home Supplies LLC">
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label for="country">国家/地区</label>
+          <input id="country" value="United Arab Emirates">
+        </div>
+        <div>
+          <label for="productName">产品</label>
+          <input id="productName" value="Stainless steel water bottle">
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label for="quantity">数量</label>
+          <input id="quantity" value="8,000 pcs">
+        </div>
+        <div>
+          <label for="targetPrice">目标价</label>
+          <input id="targetPrice" value="USD 2.35/pc">
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label for="incoterm">贸易条款</label>
+          <input id="incoterm" value="FOB Ningbo">
+        </div>
+        <div>
+          <label for="destinationPort">目的港</label>
+          <input id="destinationPort" value="Jebel Ali">
+        </div>
+      </div>
+      <label for="message">原始邮件</label>
+      <textarea id="message">Dear supplier, we are looking for 8000 pcs stainless steel water bottles, 750ml, matte black, with our logo printing. Please quote FOB Ningbo. Our target price is USD 2.35/pc. We need delivery before July promotion season. Please also advise sample cost and lead time.</textarea>
+      <div class="grid2">
+        <div>
+          <label for="preferredModel">处理偏好</label>
+          <select id="preferredModel">
+            <option value="">自动判断</option>
+            <option value="DEEPSEEK">严格分析</option>
+            <option value="ALIBABA_BAILIAN">销售推进</option>
+          </select>
+        </div>
+        <div>
+          <label for="token">访问令牌</label>
+          <input id="token" value="dev-token">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="analyze">评估商机</button>
+        <button id="plan" class="secondary">生成计划</button>
+        <button id="reply" class="neutral">写回复</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="board">
+        <div class="metric">
+          <div class="name">商机评分</div>
+          <div id="score" class="value">-</div>
+          <div id="intent" class="small">等待评估</div>
+        </div>
+        <div class="metric">
+          <div class="name">风险等级</div>
+          <div id="risk" class="value">-</div>
+          <div id="model" class="small">模型未调用</div>
+        </div>
+        <div class="metric">
+          <div class="name">下一步</div>
+          <div id="next" class="small">请先录入或使用默认询盘</div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button id="tabSummary" class="tab active">商机摘要</button>
+        <button id="tabTasks" class="tab">推进任务</button>
+        <button id="tabReply" class="tab">客户回复</button>
+      </div>
+      <pre id="summary">等待分析...</pre>
+      <div id="tasks" class="tasks hidden"></div>
+      <pre id="replyBox" class="hidden">等待生成...</pre>
+    </section>
+  </main>
+
+  <script>
+    const dot = document.getElementById("dot");
+    const health = document.getElementById("health");
+    const summary = document.getElementById("summary");
+    const tasks = document.getElementById("tasks");
+    const replyBox = document.getElementById("replyBox");
+    const score = document.getElementById("score");
+    const risk = document.getElementById("risk");
+    const intent = document.getElementById("intent");
+    const model = document.getElementById("model");
+    const next = document.getElementById("next");
+
+    function payload() {
+      const preferredModel = document.getElementById("preferredModel").value || null;
+      return {
+        conversationId: "trade-opportunity-browser",
+        customerName: document.getElementById("customerName").value,
+        companyName: document.getElementById("companyName").value,
+        country: document.getElementById("country").value,
+        productName: document.getElementById("productName").value,
+        quantity: document.getElementById("quantity").value,
+        targetPrice: document.getElementById("targetPrice").value,
+        incoterm: document.getElementById("incoterm").value,
+        destinationPort: document.getElementById("destinationPort").value,
+        message: document.getElementById("message").value,
+        preferredModel
+      };
+    }
+
+    async function checkHealth() {
+      try {
+        const res = await fetch("/actuator/health");
+        const data = await res.json();
+        dot.className = "dot ok";
+        health.textContent = `服务状态：${data.status}`;
+      } catch (error) {
+        dot.className = "dot bad";
+        health.textContent = "服务未连接";
+      }
+    }
+
+    async function postJson(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Token": document.getElementById("token").value
+        },
+        body: JSON.stringify(body)
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(`${res.status} ${text}`);
+      return JSON.parse(text);
+    }
+
+    function setBusy(button, busy) {
+      button.disabled = busy;
+      button.textContent = busy ? "处理中..." : button.dataset.label;
+    }
+
+    function show(name) {
+      summary.classList.toggle("hidden", name !== "summary");
+      tasks.classList.toggle("hidden", name !== "tasks");
+      replyBox.classList.toggle("hidden", name !== "reply");
+      document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+      document.getElementById(name === "summary" ? "tabSummary" : name === "tasks" ? "tabTasks" : "tabReply").classList.add("active");
+    }
+
+    function updateMetrics(data) {
+      score.textContent = data.leadScore ?? "-";
+      risk.textContent = data.riskLevel ?? "-";
+      intent.textContent = data.buyingIntent ?? "已生成评估";
+      model.textContent = `${data.model || "-"} / ${data.route?.selectedModel || "-"}`;
+      next.textContent = (data.nextActions || []).slice(0, 2).join("；") || "查看详情";
+    }
+
+    function renderTasks(plan) {
+      tasks.innerHTML = "";
+      (plan.tasks || []).forEach(task => {
+        const el = document.createElement("div");
+        el.className = "task";
+        el.innerHTML = `
+          <div class="task-title">${task.order}. ${task.name}</div>
+          <div class="task-meta">${task.ownerRole} · ${task.status}</div>
+          <ul>${(task.actions || []).map(action => `<li>${action}</li>`).join("")}</ul>
+        `;
+        tasks.appendChild(el);
+      });
+      if (!plan.tasks || plan.tasks.length === 0) {
+        tasks.textContent = "没有生成任务。";
+      }
+    }
+
+    document.querySelectorAll(".actions button").forEach(button => button.dataset.label = button.textContent);
+    document.getElementById("tabSummary").addEventListener("click", () => show("summary"));
+    document.getElementById("tabTasks").addEventListener("click", () => show("tasks"));
+    document.getElementById("tabReply").addEventListener("click", () => show("reply"));
+
+    document.getElementById("analyze").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      show("summary");
+      summary.textContent = "正在评估商机...";
+      try {
+        const data = await postJson("/api/v1/trade/opportunities/analyze", payload());
+        updateMetrics(data);
+        summary.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        summary.textContent = `评估失败：${error.message}`;
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("plan").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      show("tasks");
+      tasks.textContent = "正在生成销售推进计划...";
+      try {
+        const data = await postJson("/api/v1/trade/opportunities/sales-plan", payload());
+        model.textContent = `${data.model || "-"} / ${data.route?.selectedModel || "-"}`;
+        next.textContent = (data.negotiationPoints || []).slice(0, 2).join("；") || "推进计划已生成";
+        renderTasks(data);
+      } catch (error) {
+        tasks.textContent = `生成失败：${error.message}`;
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    document.getElementById("reply").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      setBusy(button, true);
+      show("reply");
+      replyBox.textContent = "";
+      try {
+        const res = await fetch("/api/v1/trade/opportunities/reply/stream", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "X-API-Token": document.getElementById("token").value
+          },
+          body: JSON.stringify(payload())
+        });
+        if (!res.ok || !res.body) throw new Error(`${res.status} ${await res.text()}`);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          for (const line of chunk.split(/\r?\n/)) {
+            if (!line.startsWith("data:")) continue;
+            const eventData = JSON.parse(line.slice(5));
+            if (eventData.type === "TOKEN") replyBox.textContent += eventData.content;
+            if (eventData.type === "ROUTE") model.textContent = `${eventData.route.selectedModel} / ${eventData.route.fallbackModel || "-"}`;
+          }
+          replyBox.scrollTop = replyBox.scrollHeight;
+        }
+      } catch (error) {
+        replyBox.textContent = `生成失败：${error.message}`;
+      } finally {
+        setBusy(button, false);
+      }
+    });
+
+    checkHealth();
+  </script>
+</body>
+</html>

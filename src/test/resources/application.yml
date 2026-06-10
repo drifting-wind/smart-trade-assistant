@@ -1,0 +1,26 @@
+spring:
+  ai:
+    dashscope:
+      enabled: false
+
+ai:
+  gateway:
+    security:
+      enabled: false
+    models:
+      deepseek:
+        provider: DEEPSEEK
+        enabled: true
+        base-url: http://localhost:18080
+        path: /chat/completions
+        api-key: test
+        model: deepseek-chat
+        capabilities: qa,reasoning,code,analysis
+      bailian:
+        provider: ALIBABA_BAILIAN
+        enabled: true
+        base-url: http://localhost:18081
+        path: /chat/completions
+        api-key: test
+        model: qwen-plus
+        capabilities: qa,long_context,process,planning,writing
