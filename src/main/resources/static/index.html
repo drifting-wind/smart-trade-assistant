@@ -760,6 +760,8 @@
         const decoder = new TextDecoder("utf-8");
         let answer = "";
         const sources = [];
+        let assistantIndex = -1; // 跟踪当前 assistant 消息在 ragSession 中的索引
+
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
@@ -776,13 +778,22 @@
             } catch (e) { /* skip malformed */ }
           }
           removeTypingIndicator();
-          ragSession.push({ role: "assistant", content: answer, sources });
+          // 修复：第一次收到数据时创建 assistant 消息，后续更新而非新增
+          if (assistantIndex === -1) {
+            ragSession.push({ role: "assistant", content: answer, sources });
+            assistantIndex = ragSession.length - 1;
+          } else {
+            ragSession[assistantIndex] = { role: "assistant", content: answer, sources };
+          }
           renderRagMessages();
           addTypingIndicator();
         }
         removeTypingIndicator();
         if (!answer) throw new Error("未收到回答");
-        ragSession[ragSession.length - 1] = { role: "assistant", content: answer, sources };
+        // 最终更新一次确保内容完整
+        if (assistantIndex !== -1) {
+          ragSession[assistantIndex] = { role: "assistant", content: answer, sources };
+        }
         renderRagMessages();
       } catch (error) {
         removeTypingIndicator();

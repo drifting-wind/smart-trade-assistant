@@ -104,8 +104,8 @@ ai:
       # 相似度阈值（低于此值的结果会被过滤）
       similarity-threshold: 0.5
       # 文本分块配置
-      chunk-size: 500      # 每块字符数
-      chunk-overlap: 50    # 块间重叠字符数
+      chunk-size: 300      # 每块字符数      若是：结构化文档 200 ~ 400 汉字（别超过 400）
+      chunk-overlap: 35    # 块间重叠字符数   仅用来防语义截断，不要过大
 
       # Embedding 配置 —— 主模型 + 降级模型
       embedding:
@@ -180,13 +180,37 @@ ai:
         # 连接超时时间
         timeout: 10s
 
+      # 混合检索配置（向量 + BM25）
+      hybrid:
+        # 是否启用混合检索
+        enabled: true
+        # BM25 权重
+        bm25-weight: 0.3
+        # 向量检索权重
+        vector-weight: 0.7
+        # 融合后取 Top-K
+        top-k: 3
+
+      # Rerank 重排序配置
+      rerank:
+        # 是否启用 Rerank
+        enabled: true
+        # Rerank 模型
+        model: text-rerank-v2
+        # DashScope Rerank API 基础 URL
+        base-url: https://dashscope.aliyuncs.com/api/v1
+        # API 密钥
+        api-key: ${DASHSCOPE_API_KEY:sk-0e1be25b97ed4d7793f199fbbc225b40}
+        # 重排序后取 Top-K
+        top-k: 3
+
     # 模型列表配置
     models:
       # DeepSeek 模型
       deepseek:
         provider: DEEPSEEK
         # 是否启用
-        enabled: ${DEEPSEEK_ENABLED:true}
+        enabled: ${DEEPSEEK_ENABLED:false}
         # API 基础 URL
         base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
         # API 路径

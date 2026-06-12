@@ -477,6 +477,14 @@ public class AiGatewayProperties {
         @Valid
         private Milvus milvus = new Milvus();
 
+        /** 混合检索配置（向量 + BM25） */
+        @Valid
+        private Hybrid hybrid = new Hybrid();
+
+        /** Rerank 重排序配置 */
+        @Valid
+        private Rerank rerank = new Rerank();
+
         // ==================== getter / setter ====================
 
         public String getVectorStoreType() {
@@ -565,6 +573,22 @@ public class AiGatewayProperties {
 
         public void setCostMonitor(CostMonitor costMonitor) {
             this.costMonitor = costMonitor;
+        }
+
+        public Hybrid getHybrid() {
+            return hybrid;
+        }
+
+        public void setHybrid(Hybrid hybrid) {
+            this.hybrid = hybrid;
+        }
+
+        public Rerank getRerank() {
+            return rerank;
+        }
+
+        public void setRerank(Rerank rerank) {
+            this.rerank = rerank;
         }
 
         public Embedding getFallbackEmbedding() {
@@ -884,6 +908,73 @@ public class AiGatewayProperties {
             public void setLogDetailedUsage(boolean logDetailedUsage) {
                 this.logDetailedUsage = logDetailedUsage;
             }
+        }
+
+        /**
+         * 混合检索配置 —— 向量检索 + BM25 关键词检索。
+         * 对应 YAML 路径: ai.gateway.rag.hybrid.*
+         */
+        public static class Hybrid {
+            /** 是否启用混合检索，关闭时降级为纯向量检索 */
+            private boolean enabled = false;
+
+            /** BM25 权重（0~1），向量权重 = 1 - bm25Weight */
+            @Min(0)
+            @Max(1)
+            private double bm25Weight = 0.3;
+
+            /** 向量检索权重（0~1），默认 0.7 */
+            @Min(0)
+            @Max(1)
+            private double vectorWeight = 0.7;
+
+            /** 融合后取 Top-K 条结果 */
+            @Min(1)
+            @Max(50)
+            private int topK = 20;
+
+            public boolean isEnabled() { return enabled; }
+            public void setEnabled(boolean enabled) { this.enabled = enabled; }
+            public double getBm25Weight() { return bm25Weight; }
+            public void setBm25Weight(double bm25Weight) { this.bm25Weight = bm25Weight; }
+            public double getVectorWeight() { return vectorWeight; }
+            public void setVectorWeight(double vectorWeight) { this.vectorWeight = vectorWeight; }
+            public int getTopK() { return topK; }
+            public void setTopK(int topK) { this.topK = topK; }
+        }
+
+        /**
+         * Rerank 重排序配置 —— 使用 DashScope text-rerank-v2 模型。
+         * 对应 YAML 路径: ai.gateway.rag.rerank.*
+         */
+        public static class Rerank {
+            /** 是否启用 Rerank 重排序 */
+            private boolean enabled = false;
+
+            /** Rerank 模型名称 */
+            private String model = "text-rerank-v2";
+
+            /** DashScope Rerank API 基础 URL */
+            private String baseUrl = "https://dashscope.aliyuncs.com/api/v1";
+
+            /** API 密钥 */
+            private String apiKey;
+
+            /** 重排序后取 Top-K 条结果 */
+            @Min(1)
+            @Max(50)
+            private int topK = 10;
+
+            public boolean isEnabled() { return enabled; }
+            public void setEnabled(boolean enabled) { this.enabled = enabled; }
+            public String getModel() { return model; }
+            public void setModel(String model) { this.model = model; }
+            public String getBaseUrl() { return baseUrl; }
+            public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+            public String getApiKey() { return apiKey; }
+            public void setApiKey(String apiKey) { this.apiKey = apiKey; }
+            public int getTopK() { return topK; }
+            public void setTopK(int topK) { this.topK = topK; }
         }
     }
 }

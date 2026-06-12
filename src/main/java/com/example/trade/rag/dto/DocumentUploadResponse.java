@@ -48,4 +48,17 @@ public record DocumentUploadResponse(
          */
         Instant createdAt
 ) {
+    /**
+     * 创建成功响应的便捷方法
+     */
+    public static DocumentUploadResponse success(String documentId, String title, int chunkCount, Map<String, Object> metadata) {
+        return new DocumentUploadResponse(documentId, title, chunkCount, "success", null, metadata, Instant.now());
+    }
+
+    /**
+     * 创建失败响应的便捷方法
+     */
+    public static DocumentUploadResponse failed(String title, String errorMessage) {
+        return new DocumentUploadResponse(null, title, 0, "failed", errorMessage, null, Instant.now());
+    }
 }

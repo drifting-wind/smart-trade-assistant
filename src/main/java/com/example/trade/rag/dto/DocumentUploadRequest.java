@@ -42,7 +42,7 @@ public record DocumentUploadRequest(
 
         /**
          * 文档类型 —— 标识内容格式，用于选择解析策略。
-         * 可选值：pdf, docx, txt, markdown, html
+         * 可选值：pdf, doc, docx, txt, markdown, html
          * 如果为空，系统会根据 fileUrl 后缀或内容自动推断。
          */
         String contentType,

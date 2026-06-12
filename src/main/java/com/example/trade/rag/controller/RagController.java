@@ -22,6 +22,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -65,13 +66,13 @@ public class RagController {
     }
 
     /**
-     * 上传文件并摄入知识库。
+     * 上传单个文件并摄入知识库。
      *
-     * 支持的文件类型：PDF、DOCX、TXT、Markdown
+     * 支持的文件类型：PDF、DOC、DOCX、TXT、Markdown
      *
      * 请求格式：multipart/form-data
-     * - file: 文件内容
-     * - title: 文档标题（可选）
+     * - file: 文件内容（必填）
+     * - title: 文档标题（可选，默认使用文件名）
      * - contentType: 文件类型（可选，自动推断）
      * - metadata: 元数据（可选，JSON 格式）
      *
@@ -93,11 +94,19 @@ public class RagController {
             @RequestParam(value = "contentType", required = false) String contentType,
             @RequestParam(value = "metadata", required = false) String metadataJson
     ) {
-        log.info("📤 接收文件上传: {}", file.filename());
+        log.info("📤 接收单文件上传: {}", file.filename());
+
+        // 校验文件类型
+        String filename = file.filename();
+        if (!isSupportedFileType(filename)) {
+            return Mono.error(new IllegalArgumentException(
+                    "不支持的文件类型: " + filename + "。支持的类型：PDF、DOC、DOCX、TXT、Markdown"
+            ));
+        }
 
         // 构建上传请求
         DocumentUploadRequest request = new DocumentUploadRequest(
-                title != null ? title : file.filename(),
+                title != null ? title : filename,
                 null, // fileUrl
                 null, // textContent
                 contentType,
@@ -105,6 +114,83 @@ public class RagController {
         );
 
         return ingestionService.ingestFromFile(file, request);
+    }
+
+    /**
+     * 批量上传文件并摄入知识库。
+     *
+     * 支持的文件类型：PDF、DOC、DOCX、TXT、Markdown
+     * 最大文件数量：10 个
+     *
+     * 请求格式：multipart/form-data
+     * - files: 文件列表（必填，支持多文件）
+     * - titlePrefix: 标题前缀（可选，会自动附加文件名）
+     * - metadata: 元数据（可选，JSON 格式，应用于所有文件）
+     *
+     * 响应示例：
+     * {
+     *   "totalCount": 3,
+     *   "successCount": 2,
+     *   "failedCount": 1,
+     *   "results": [
+     *     {
+     *       "filename": "产品手册.pdf",
+     *       "documentId": "abc-123",
+     *       "chunkCount": 42,
+     *       "status": "success",
+     *       "error": null
+     *     },
+     *     {
+     *       "filename": "不支持的文件.exe",
+     *       "documentId": null,
+     *       "chunkCount": 0,
+     *       "status": "failed",
+     *       "error": "不支持的文件类型"
+     *     }
+     *   ],
+     *   "processedAt": "2026-06-10T10:30:00Z"
+     * }
+     */
+    @PostMapping(value = "/documents/upload/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Mono<com.example.trade.rag.dto.BatchUploadResponse> uploadDocuments(
+            @RequestPart("files") List<FilePart> files,
+            @RequestParam(value = "titlePrefix", required = false) String titlePrefix,
+            @RequestParam(value = "metadata", required = false) String metadataJson
+    ) {
+        if (files == null || files.isEmpty()) {
+            return Mono.error(new IllegalArgumentException("文件列表不能为空"));
+        }
+        if (files.size() > 10) {
+            return Mono.error(new IllegalArgumentException("单次批量上传最多支持 10 个文件"));
+        }
+
+        log.info("📤 接收批量文件上传: {} 个文件", files.size());
+
+        // 校验所有文件类型
+        for (FilePart file : files) {
+            if (!isSupportedFileType(file.filename())) {
+                return Mono.error(new IllegalArgumentException(
+                        "不支持的文件类型: " + file.filename() + "。支持的类型：PDF、DOC、DOCX、TXT、Markdown"
+                ));
+            }
+        }
+
+        return ingestionService.ingestFromFiles(files, titlePrefix, metadataJson);
+    }
+
+    /**
+     * 检查文件类型是否支持。
+     * 支持：PDF、DOC、DOCX、TXT、Markdown
+     */
+    private boolean isSupportedFileType(String filename) {
+        if (filename == null) return false;
+        String lower = filename.toLowerCase();
+        return lower.endsWith(".pdf")
+                || lower.endsWith(".doc")
+                || lower.endsWith(".docx")
+                || lower.endsWith(".txt")
+                || lower.endsWith(".md")
+                || lower.endsWith(".markdown");
     }
 
     /**

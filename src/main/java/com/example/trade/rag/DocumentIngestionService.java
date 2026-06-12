@@ -49,27 +49,32 @@ public class DocumentIngestionService {
 
     private final EmbeddingService embeddingService;
     private final MilvusVectorStoreClient vectorStoreClient;
+    private final Bm25IndexService bm25IndexService;
     private final AiGatewayProperties.Rag ragProperties;
     private final WebClient webClient;
 
     public DocumentIngestionService(
             EmbeddingService embeddingService,
             MilvusVectorStoreClient vectorStoreClient,
+            Bm25IndexService bm25IndexService,
             AiGatewayProperties properties,
             WebClient.Builder webClientBuilder
     ) {
         this.embeddingService = embeddingService;
         this.vectorStoreClient = vectorStoreClient;
+        this.bm25IndexService = bm25IndexService;
         this.ragProperties = properties.getRag();
         this.webClient = webClientBuilder.build();
     }
 
     /**
-     * 摄入文档（从文件上传） —— 处理前端上传的 PDF/DOCX 文件。
+     * 摄入文档（从文件上传） —— 处理前端上传的单个文件。
+     *
+     * 支持的文件类型：PDF、DOCX、TXT、Markdown
      *
      * 流程：
      * 1. 读取 FilePart 内容为字节数组
-     * 2. 根据 contentType 选择 DocumentParser（PDF/DOCX/TXT）
+     * 2. 根据 contentType 选择 DocumentParser
      * 3. 解析为纯文本 → 分块 → Embedding → 写入 Milvus
      *
      * @param file 上传的文件
@@ -82,6 +87,93 @@ public class DocumentIngestionService {
         return readFileBytes(file)
                 .flatMap(bytes -> parseAndIngest(documentId, bytes, request))
                 .onErrorMap(e -> new VectorStoreException("文件摄入失败: " + e.getMessage(), e));
+    }
+
+    /**
+     * 批量摄入文档（从多个文件上传） —— 处理前端上传的多个文件。
+     *
+     * 支持的文件类型：PDF、DOC、DOCX、TXT、Markdown
+     *
+     * @param files 上传的文件列表
+     * @param titlePrefix 标题前缀（可选）
+     * @param metadataJson 元数据 JSON（可选）
+     * @return 批量摄入结果
+     */
+    public Mono<com.example.trade.rag.dto.BatchUploadResponse> ingestFromFiles(
+            List<FilePart> files,
+            String titlePrefix,
+            String metadataJson
+    ) {
+        Map<String, Object> metadata = parseMetadata(metadataJson);
+        List<Mono<com.example.trade.rag.dto.BatchUploadResponse.FileUploadResult>> monos = files.stream()
+                .map(file -> {
+                    DocumentUploadRequest request = new DocumentUploadRequest(
+                            titlePrefix != null && !titlePrefix.isBlank()
+                                    ? titlePrefix + " - " + file.filename()
+                                    : file.filename(),
+                            null,
+                            null,
+                            null,
+                            metadata
+                    );
+                    return ingestFromFile(file, request)
+                            .map(resp -> new com.example.trade.rag.dto.BatchUploadResponse.FileUploadResult(
+                                    file.filename(),
+                                    resp.documentId(),
+                                    resp.chunkCount(),
+                                    "success",
+                                    null
+                            ))
+                            .onErrorResume(e -> Mono.just(
+                                    new com.example.trade.rag.dto.BatchUploadResponse.FileUploadResult(
+                                            file.filename(),
+                                            null,
+                                            0,
+                                            "failed",
+                                            e.getMessage()
+                                    )
+                            ));
+                })
+                .toList();
+
+        return Mono.zip(monos, results -> {
+            List<com.example.trade.rag.dto.BatchUploadResponse.FileUploadResult> fileResults = new ArrayList<>();
+            int successCount = 0;
+            int failedCount = 0;
+            for (Object obj : results) {
+                com.example.trade.rag.dto.BatchUploadResponse.FileUploadResult r =
+                        (com.example.trade.rag.dto.BatchUploadResponse.FileUploadResult) obj;
+                fileResults.add(r);
+                if ("success".equals(r.status())) {
+                    successCount++;
+                } else {
+                    failedCount++;
+                }
+            }
+            return new com.example.trade.rag.dto.BatchUploadResponse(
+                    files.size(),
+                    successCount,
+                    failedCount,
+                    fileResults,
+                    Instant.now()
+            );
+        });
+    }
+
+    /**
+     * 解析 JSON 格式的元数据
+     */
+    private Map<String, Object> parseMetadata(String metadataJson) {
+        if (metadataJson == null || metadataJson.isBlank()) {
+            return null;
+        }
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(metadataJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.warn("⚠️ 元数据 JSON 解析失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -120,11 +212,21 @@ public class DocumentIngestionService {
 
     /**
      * 解析文件并摄入 —— 根据文件类型选择解析器。
+     *
+     * 改进：自动检测文件实际格式，解决扩展名与实际格式不匹配的问题。
+     * 例如：文件扩展名是 .docx，但实际是旧版 .doc 格式（OLE2），则自动切换到 DOC 解析器。
      */
     private Mono<DocumentUploadResponse> parseAndIngest(String documentId, byte[] bytes, DocumentUploadRequest request) {
         String contentType = request.contentType();
         if (contentType == null) {
             contentType = detectContentType(request.title());
+        }
+
+        // 自动检测文件实际格式，解决扩展名与实际格式不匹配的问题
+        String actualType = detectActualContentType(bytes, contentType);
+        if (!actualType.equals(contentType)) {
+            log.info("🔄 文件实际类型与扩展名不匹配: 扩展名={}, 实际类型={}", contentType, actualType);
+            contentType = actualType;
         }
 
         // 解析文档为纯文本
@@ -133,6 +235,38 @@ public class DocumentIngestionService {
 
         // 摄入文本
         return ingestText(documentId, text, request);
+    }
+
+    /**
+     * 检测文件实际内容类型（通过文件头字节判断）。
+     *
+     * OLE2 (旧版 .doc): 文件头为 D0 CF 11 E0 A1 B1 1A E1
+     * OOXML (新版 .docx): 文件头为 50 4B 03 04 (ZIP 格式)
+     */
+    private String detectActualContentType(byte[] bytes, String defaultType) {
+        if (bytes == null || bytes.length < 8) {
+            return defaultType;
+        }
+
+        // 检查 OLE2 格式（旧版 .doc）
+        if (bytes[0] == (byte) 0xD0 && bytes[1] == (byte) 0xCF &&
+            bytes[2] == (byte) 0x11 && bytes[3] == (byte) 0xE0) {
+            return "doc";
+        }
+
+        // 检查 OOXML 格式（新版 .docx, .xlsx, .pptx）- ZIP 格式
+        if (bytes[0] == (byte) 0x50 && bytes[1] == (byte) 0x4B &&
+            bytes[2] == (byte) 0x03 && bytes[3] == (byte) 0x04) {
+            return "docx";
+        }
+
+        // 检查 PDF 格式
+        if (bytes[0] == (byte) 0x50 && bytes[1] == (byte) 0x44 &&
+            bytes[2] == (byte) 0x46 && bytes[3] == (byte) 0x2D) {
+            return "pdf";
+        }
+
+        return defaultType;
     }
 
     /**
@@ -294,12 +428,18 @@ public class DocumentIngestionService {
                 row.put("metadata", metadata);
 
                 rows.add(row);
+
+                // 步骤 3.5: 同步更新 BM25 索引
+                bm25IndexService.addChunk(documentId, i, chunks.get(i));
             }
 
             // 步骤 4: 写入 Milvus
             vectorStoreClient.insert(rows)
                     .subscribeOn(Schedulers.boundedElastic())
                     .block();
+
+            // 步骤 5: 提交 BM25 索引，确保对搜索可见
+            bm25IndexService.commit();
 
             log.info("✅ 文档摄入完成: {}", documentId);
 
@@ -378,15 +518,18 @@ public class DocumentIngestionService {
 
     /**
      * 根据文件名推断内容类型。
+     * 支持：PDF、DOC、DOCX、TXT、Markdown
      */
-    private String detectContentType(String filename) {
+    public String detectContentType(String filename) {
         if (filename == null) {
             return "txt";
         }
         String lower = filename.toLowerCase();
         if (lower.endsWith(".pdf")) return "pdf";
-        if (lower.endsWith(".docx") || lower.endsWith(".doc")) return "docx";
+        if (lower.endsWith(".docx")) return "docx";
+        if (lower.endsWith(".doc")) return "doc";
         if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "markdown";
+        if (lower.endsWith(".txt")) return "txt";
         if (lower.endsWith(".html") || lower.endsWith(".htm")) return "html";
         return "txt";
     }

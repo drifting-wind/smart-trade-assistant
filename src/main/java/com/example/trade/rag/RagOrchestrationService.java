@@ -44,6 +44,8 @@ public class RagOrchestrationService {
 
     private final EmbeddingService embeddingService;
     private final MilvusVectorStoreClient vectorStoreClient;
+    private final HybridSearchService hybridSearchService;
+    private final RerankService rerankService;
     private final ChatOrchestrationService chatService;
     private final PromptFactory promptFactory;
     private final int maxResults;
@@ -51,12 +53,16 @@ public class RagOrchestrationService {
     public RagOrchestrationService(
             EmbeddingService embeddingService,
             MilvusVectorStoreClient vectorStoreClient,
+            HybridSearchService hybridSearchService,
+            RerankService rerankService,
             ChatOrchestrationService chatService,
             PromptFactory promptFactory,
             com.example.trade.config.AiGatewayProperties properties
     ) {
         this.embeddingService = embeddingService;
         this.vectorStoreClient = vectorStoreClient;
+        this.hybridSearchService = hybridSearchService;
+        this.rerankService = rerankService;
         this.chatService = chatService;
         this.promptFactory = promptFactory;
         this.maxResults = properties.getRag().getMaxResults();
@@ -77,18 +83,18 @@ public class RagOrchestrationService {
     public Mono<ChatResponse> completeWithRetrieval(ChatRequest request) {
         log.info("🔍 RAG 问答开始: {}", request.question());
 
-        // 步骤 1: 问题向量化
-        return embeddingService.embed(request.question())
-                .flatMap(embedding -> {
-                    log.debug("🧮 问题向量化完成，维度: {}", embedding.length);
+        // 步骤 1 + 2: 混合检索（向量 + BM25）
+        return hybridSearchService.search(request.question(), maxResults)
+                .flatMap(matches -> {
+                    log.info("📚 混合检索完成，共 {} 条结果", matches.size());
 
-                    // 步骤 2: 检索相关文档
-                    return vectorStoreClient.search(embedding, maxResults)
-                            .flatMap(matches -> {
-                                log.info("📚 检索到 {} 个相关文档块", matches.size());
+                    // 步骤 3: Rerank 重排序
+                    return rerankService.rerank(request.question(), matches)
+                            .flatMap(reranked -> {
+                                log.info("🔄 Rerank 完成，最终 {} 条结果", reranked.size());
 
-                                // 步骤 3: 构建增强 Prompt 并调用 AI
-                                return completeWithMatches(request, matches);
+                                // 步骤 4: 构建增强 Prompt 并调用 AI
+                                return completeWithMatches(request, reranked);
                             });
                 })
                 .onErrorMap(e -> new RuntimeException("RAG 问答失败: " + e.getMessage(), e));
@@ -105,13 +111,17 @@ public class RagOrchestrationService {
     public Flux<AiStreamEvent> streamWithRetrieval(ChatRequest request) {
         log.info("🔍 RAG 流式问答开始: {}", request.question());
 
-        return embeddingService.embed(request.question())
-                .flatMapMany(embedding ->
-                        vectorStoreClient.search(embedding, maxResults)
-                                .flatMapMany(matches ->
-                                        streamWithMatches(request, matches)
-                                )
-                )
+        return hybridSearchService.search(request.question(), maxResults)
+                .flatMapMany(matches -> {
+                    log.info("📚 混合检索完成，共 {} 条结果", matches.size());
+
+                    // Rerank 重排序
+                    return rerankService.rerank(request.question(), matches)
+                            .flatMapMany(reranked -> {
+                                log.info("🔄 Rerank 完成，最终 {} 条结果", reranked.size());
+                                return streamWithMatches(request, reranked);
+                            });
+                })
                 .onErrorMap(e -> new RuntimeException("RAG 流式问答失败: " + e.getMessage(), e));
     }
 
@@ -127,8 +137,8 @@ public class RagOrchestrationService {
      * @return 搜索结果
      */
     public Mono<SearchResultDto> search(String query) {
-        return embeddingService.embed(query)
-                .flatMap(embedding -> vectorStoreClient.search(embedding, maxResults))
+        return hybridSearchService.search(query, maxResults)
+                .flatMap(matches -> rerankService.rerank(query, matches))
                 .map(matches -> new SearchResultDto(query, matches, 0));
     }
 
