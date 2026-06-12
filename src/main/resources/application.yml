@@ -1,70 +1,231 @@
+# ============================================
+# 服务器配置
+# ============================================
 server:
+  # 服务端口（可通过环境变量 SERVER_PORT 覆盖）
   port: ${SERVER_PORT:8080}
   compression:
-    enabled: true
+    # 禁用 HTTP 压缩（避免 Netty Zstd 版本兼容问题）
+    enabled: false
 
+# ============================================
+# Spring Boot 配置
+# ============================================
 spring:
   application:
+    # 应用名称
     name: smart-trade-assistant
   ai:
     dashscope:
+      # 禁用 Spring AI 的 DashScope 自动配置（使用自定义 AI 网关）
+      enabled: false
+
+# ============================================
+# 日志配置
+# ============================================
+logging:
+  level:
+    # 应用日志级别
+    com.example.multiai: DEBUG
+  ai:
+    dashscope:
+      # DashScope AI 日志开关
       enabled: ${DASHSCOPE_ENABLED:false}
   jackson:
+    # JSON 序列化：不包含 null 字段
     default-property-inclusion: non_null
     serialization:
+      # 日期格式化为 ISO-8601 字符串（而非时间戳）
       write-dates-as-timestamps: false
   threads:
+    # 启用虚拟线程（提升并发性能）
     virtual:
       enabled: true
 
+# ============================================
+# Actuator 监控配置
+# ============================================
 management:
   endpoints:
     web:
       exposure:
+        # 暴露的监控端点：健康检查、信息、指标、Prometheus
         include: health,info,metrics,prometheus
   endpoint:
     health:
       probes:
+        # 启用健康检查探针（用于 K8s 等环境）
         enabled: true
+      # 显示健康检查详情
+      show-details: always
+      show-components: always
 
+# ============================================
+# API 文档配置（SpringDoc OpenAPI）
+# ============================================
 springdoc:
   swagger-ui:
+    # Swagger UI 访问路径
     path: /swagger-ui.html
 
+# ============================================
+# AI 网关配置
+# ============================================
 ai:
   gateway:
-    cache-ttl: 10m
-    conversation-ttl: 2h
-    max-history-messages: 16
+    # 响应缓存配置
+    cache-ttl: 10m              # 缓存过期时间：10 分钟
+    conversation-ttl: 2h        # 对话上下文过期时间：2 小时
+    max-history-messages: 16    # 最大历史消息数
+
+    # 安全认证配置
     security:
+      # 是否启用 API 认证（可通过环境变量覆盖）
       enabled: ${AI_AUTH_ENABLED:true}
+      # API 认证令牌（逗号分隔多个）
       tokens: ${AI_GATEWAY_TOKENS:dev-token}
+
+    # 模型路由配置
     routing:
-      default-model: DEEPSEEK
-      fallback-order: DEEPSEEK,ALIBABA_BAILIAN
-      long-context-threshold: 4000
+      default-model: DEEPSEEK              # 默认使用 DeepSeek 模型
+      fallback-order: DEEPSEEK,ALIBABA_BAILIAN  # 降级顺序
+      long-context-threshold: 4000          # 长文本阈值（超过则切换模型）
+
+    # RAG 知识库配置
+    rag:
+      # 向量数据库类型
+      vector-store-type: milvus
+      # 集合名称
+      collection-name: trade_knowledge
+      # 向量维度（需与 Embedding 模型输出维度一致）
+      dimension: 1024
+      # 最大返回结果数
+      max-results: 10
+      # 相似度阈值（低于此值的结果会被过滤）
+      similarity-threshold: 0.5
+      # 文本分块配置
+      chunk-size: 500      # 每块字符数
+      chunk-overlap: 50    # 块间重叠字符数
+
+      # Embedding 配置 —— 主模型 + 降级模型
+      embedding:
+        # 主模型：阿里巴巴 DashScope text-embedding-v3（生产级）
+        model: text-embedding-v3
+        # Embedding API 基础 URL（DashScope 兼容 OpenAI /v1/embeddings）
+        base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+        # Embedding API 路径
+        path: /embeddings
+        # API 密钥（从环境变量读取，保护敏感信息）
+        api-key: ${DASHSCOPE_API_KEY:sk-0e1be25b97ed4d7793f199fbbc225b40}
+        # 编码格式：float 或 base64
+        encoding-format: float
+        # 请求超时时间：30 秒
+        timeout: 30s
+        # 重试次数：2 次
+        max-retries: 2
+        # 单价：0.02 元/百万 token（DashScope text-embedding-v3 官方价格）
+        price-per-million-tokens: 0.02
+        # 月度预算：1000 元
+        monthly-budget: 1000.0
+
+      # 降级 Embedding 配置 —— 主模型不可用时自动切换
+      fallback-embedding:
+        # 降级模型：本地 Mock 服务（用于测试或主模型故障时）
+        model: mock-embedding
+        # Embedding API 基础 URL（本地 Mock 服务）
+        base-url: http://localhost:8082
+        # Embedding API 路径
+        path: /v1/embeddings
+        # API 密钥（Mock 服务不需要真实密钥）
+        api-key: mock-key
+        # 编码格式：float
+        encoding-format: float
+        # 请求超时时间：5 秒（Mock 服务响应快）
+        timeout: 5s
+        # 重试次数：1 次
+        max-retries: 1
+        # 降级模型单价：0 元（Mock 服务免费）
+        price-per-million-tokens: 0.0
+
+      # 健康检查配置 —— 定期检查 Embedding 服务可用性
+      health-check:
+        # 是否启用健康检查
+        enabled: true
+        # 健康检查间隔：60 秒
+        interval-seconds: 60
+        # 超时时间：5 秒
+        timeout-seconds: 5
+        # 连续失败多少次触发告警
+        failure-threshold: 3
+
+      # 成本监控配置 —— 跟踪 Embedding 调用的 token 消耗和成本
+      cost-monitor:
+        # 是否启用成本监控
+        enabled: true
+        # 月度预算：1000 元
+        monthly-budget: 1000.0
+        # 预算告警阈值：80%
+        budget-alert-threshold: 80
+        # 是否记录每次调用的详细日志（调试用）
+        log-detailed-usage: true
+      # Milvus 配置
+      milvus:
+        # Milvus 服务地址
+        host: ${MILVUS_HOST:127.0.0.1}
+        # gRPC 端口（默认 19530）
+        port: ${MILVUS_PORT:19530}
+        # 认证信息
+        username: ${MILVUS_USERNAME:trade}
+        password: ${MILVUS_PASSWORD:123456}
+        # 连接超时时间
+        timeout: 10s
+
+    # 模型列表配置
     models:
+      # DeepSeek 模型
       deepseek:
         provider: DEEPSEEK
+        # 是否启用
         enabled: ${DEEPSEEK_ENABLED:true}
+        # API 基础 URL
         base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+        # API 路径
         path: ${DEEPSEEK_CHAT_PATH:/chat/completions}
+        # API 密钥
         api-key: ${DEEPSEEK_API_KEY:sk-abdf3e8d58fc4a089495260e5b397844}
+        # 模型名称
         model: ${DEEPSEEK_MODEL:deepseek-chat}
+        # 请求超时时间
         timeout: 60s
+        # 最大输出 token 数
         max-tokens: 4096
+        # 温度参数（值越低输出越确定）
         temperature: 0.3
+        # 路由权重
         weight: 1.0
+        # 模型能力：问答、推理、代码、分析
         capabilities: qa,reasoning,code,analysis
+
+      # 阿里巴巴百炼模型
       bailian:
         provider: ALIBABA_BAILIAN
+        # 是否启用
         enabled: ${BAILIAN_ENABLED:true}
+        # API 基础 URL
         base-url: ${BAILIAN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+        # API 路径
         path: ${BAILIAN_CHAT_PATH:/chat/completions}
+        # API 密钥
         api-key: ${BAILIAN_API_KEY:${DASHSCOPE_API_KEY:sk-0e1be25b97ed4d7793f199fbbc225b40}}
+        # 模型名称
         model: ${BAILIAN_MODEL:qwen-plus}
+        # 请求超时时间
         timeout: 60s
+        # 最大输出 token 数
         max-tokens: 4096
+        # 温度参数
         temperature: 0.4
+        # 路由权重
         weight: 1.0
+        # 模型能力：问答、长文本、流程、规划、写作
         capabilities: qa,long_context,process,planning,writing

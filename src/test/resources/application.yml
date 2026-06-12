@@ -1,26 +1,40 @@
+# Spring AI 配置
 spring:
   ai:
     dashscope:
+      # 禁用 Spring AI 的 DashScope 自动配置（使用自定义 AI 网关）
       enabled: false
 
+# AI 网关配置
 ai:
   gateway:
+    # 安全认证配置
     security:
+      # 禁用 API 认证（测试环境不需要认证）
       enabled: false
+
+    # 模型配置
     models:
+      # DeepSeek 模型配置
       deepseek:
         provider: DEEPSEEK
         enabled: true
+        # DeepSeek API 地址（测试环境使用本地 Mock 服务）
         base-url: http://localhost:18080
         path: /chat/completions
         api-key: test
         model: deepseek-chat
+        # 模型能力：问答、推理、代码、分析
         capabilities: qa,reasoning,code,analysis
+
+      # 阿里巴巴百炼模型配置
       bailian:
         provider: ALIBABA_BAILIAN
         enabled: true
+        # 百炼 API 地址（测试环境使用本地 Mock 服务）
         base-url: http://localhost:18081
         path: /chat/completions
         api-key: test
         model: qwen-plus
+        # 模型能力：问答、长文本、流程、规划、写作
         capabilities: qa,long_context,process,planning,writing

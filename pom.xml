@@ -20,7 +20,8 @@
     <properties>
         <java.version>17</java.version>
         <spring-ai.version>1.1.7</spring-ai.version>
-        <langchain4j.version>1.15.0</langchain4j.version>
+        <langchain4j.version>1.14.1</langchain4j.version>
+        <milvus-sdk.version>2.5.4</milvus-sdk.version>
         <spring-ai-alibaba.version>1.1.2.3</spring-ai-alibaba.version>
         <springdoc.version>2.8.9</springdoc.version>
     </properties>
@@ -69,9 +70,40 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-client-chat</artifactId>
         </dependency>
+        <!-- LangChain4j 核心 —— 提供文本分块（DocumentSplitter）接口 -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-core</artifactId>
+            <artifactId>langchain4j</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <!-- LangChain4j OpenAI 兼容客户端 —— 支持 DeepSeek、通义千问等 OpenAI 协议模型 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+        </dependency>
+        <!-- Apache PDFBox —— 解析 PDF 文件提取文本（替代 LangChain4j PDF Loader） -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>2.0.32</version>
+        </dependency>
+        <!-- Milvus Java SDK —— 通过 gRPC 端口连接 Milvus（19530） -->
+        <dependency>
+            <groupId>io.milvus</groupId>
+            <artifactId>milvus-sdk-java</artifactId>
+            <version>2.4.10</version>
+        </dependency>
+        <!-- Apache POI —— 解析 DOCX/Excel 文件（LangChain4j 无内置 DOCX Parser） -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.3.0</version>
+        </dependency>
+        <!-- Apache POI Scratchpad —— 支持旧版 .doc (OLE2) 文件解析 -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-scratchpad</artifactId>
+            <version>5.3.0</version>
         </dependency>
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>

@@ -15,6 +15,9 @@
       --green: #16794c;
       --amber: #b54708;
       --red: #b42318;
+      --purple: #6d28d9;
+      --purple-light: #f5f3ff;
+      --purple-border: #ddd6fe;
     }
     * { box-sizing: border-box; }
     body {
@@ -52,6 +55,7 @@
       padding: 16px;
     }
     h2 { margin: 0 0 12px; font-size: 16px; }
+    h3 { margin: 0; font-size: 14px; }
     label { display: block; margin: 11px 0 6px; color: var(--muted); font-size: 13px; }
     input, textarea, select {
       width: 100%;
@@ -76,6 +80,7 @@
     }
     button.secondary { background: var(--green); }
     button.neutral { background: #475467; }
+    button.purple { background: var(--purple); }
     button:disabled { opacity: .55; cursor: wait; }
     .board {
       display: grid;
@@ -133,6 +138,232 @@
     .task-meta { margin-top: 5px; color: var(--muted); font-size: 12px; }
     .task ul { margin: 8px 0 0 18px; padding: 0; color: #344054; }
     .hidden { display: none; }
+
+    /* ========== RAG 知识库问答面板 ========== */
+    .rag-panel {
+      margin-top: 16px;
+      border: 1px solid var(--purple-border);
+      border-radius: 10px;
+      background: var(--purple-light);
+      overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+    .rag-panel:focus-within {
+      box-shadow: 0 0 0 3px rgba(109,40,217,0.15);
+    }
+    .rag-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+      cursor: pointer;
+      user-select: none;
+    }
+    .rag-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .rag-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .rag-title-area h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #4c1d95;
+    }
+    .rag-title-area p {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: #7c3aed;
+    }
+    .rag-toggle {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--purple-border);
+      background: #fff;
+      color: var(--purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.25s;
+      font-size: 14px;
+    }
+    .rag-toggle.open {
+      transform: rotate(180deg);
+    }
+    .rag-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease;
+    }
+    .rag-body.open {
+      max-height: 480px;
+    }
+    .rag-input-area {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--purple-border);
+      background: #faf8ff;
+    }
+    .rag-input-area input {
+      flex: 1;
+      border: 1px solid var(--purple-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      background: #fff;
+      color: var(--text);
+    }
+    .rag-input-area input:focus {
+      outline: none;
+      border-color: var(--purple);
+      box-shadow: 0 0 0 3px rgba(109,40,217,0.12);
+    }
+    .rag-input-area input::placeholder {
+      color: #a78bfa;
+    }
+    .rag-input-area button {
+      flex-shrink: 0;
+      padding: 10px 18px;
+      font-size: 13px;
+      border-radius: 8px;
+    }
+    .rag-messages {
+      max-height: 340px;
+      overflow-y: auto;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: #faf8ff;
+    }
+    .rag-msg {
+      display: flex;
+      gap: 8px;
+      max-width: 92%;
+    }
+    .rag-msg.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+    .rag-avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .rag-msg.user .rag-avatar {
+      background: var(--blue);
+      color: #fff;
+    }
+    .rag-msg.assistant .rag-avatar {
+      background: var(--purple);
+      color: #fff;
+    }
+    .rag-bubble {
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+    .rag-msg.user .rag-bubble {
+      background: var(--blue);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .rag-msg.assistant .rag-bubble {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--purple-border);
+      border-bottom-left-radius: 4px;
+    }
+    .rag-bubble .source {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed var(--purple-border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .rag-bubble .source-tag {
+      display: inline-block;
+      background: var(--purple-light);
+      color: var(--purple);
+      padding: 1px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-right: 4px;
+    }
+    .rag-typing {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 0;
+    }
+    .rag-typing span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--purple);
+      opacity: 0.4;
+      animation: rag-typing 1.4s infinite;
+    }
+    .rag-typing span:nth-child(2) { animation-delay: 0.2s; }
+    .rag-typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes rag-typing {
+      0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+    .rag-empty {
+      text-align: center;
+      padding: 28px 0;
+      color: #a78bfa;
+      font-size: 13px;
+    }
+    .rag-empty .rag-empty-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .rag-quick {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 0 16px 10px;
+      background: #faf8ff;
+    }
+    .rag-quick-btn {
+      border: 1px solid var(--purple-border);
+      background: #fff;
+      color: var(--purple);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .rag-quick-btn:hover {
+      background: var(--purple);
+      color: #fff;
+    }
+
     @media (max-width: 980px) {
       main { grid-template-columns: 1fr; }
       .board { grid-template-columns: 1fr; }
@@ -238,6 +469,38 @@
       <pre id="summary">等待分析...</pre>
       <div id="tasks" class="tasks hidden"></div>
       <pre id="replyBox" class="hidden">等待生成...</pre>
+
+      <!-- ========== RAG 产品知识库问答 ========== -->
+      <div class="rag-panel" id="ragPanel">
+        <div class="rag-header" id="ragHeader" onclick="toggleRag()">
+          <div class="rag-header-left">
+            <div class="rag-icon">📦</div>
+            <div class="rag-title-area">
+              <h3>产品知识库问答</h3>
+              <p>基于已上传的产品文档，精准回答参数、认证、工艺等问题</p>
+            </div>
+          </div>
+          <button class="rag-toggle" id="ragToggle" onclick="event.stopPropagation(); toggleRag()">▼</button>
+        </div>
+        <div class="rag-body" id="ragBody">
+          <div class="rag-messages" id="ragMessages">
+            <div class="rag-empty">
+              <div class="rag-empty-icon">💡</div>
+              <div>试试提问：产品有哪些认证？支持定制吗？</div>
+            </div>
+          </div>
+          <div class="rag-quick" id="ragQuick">
+            <button class="rag-quick-btn" onclick="askQuick('产品有哪些认证？')">有哪些认证</button>
+            <button class="rag-quick-btn" onclick="askQuick('支持哪些定制工艺？')">定制工艺</button>
+            <button class="rag-quick-btn" onclick="askQuick('MOQ 和交期是多少？')">MOQ/交期</button>
+            <button class="rag-quick-btn" onclick="askQuick('产品质保政策是什么？')">质保政策</button>
+          </div>
+          <div class="rag-input-area">
+            <input id="ragInput" placeholder="输入产品相关问题，如：LED Panel 的色温范围？" onkeydown="if(event.key==='Enter')askRag()">
+            <button class="purple" id="ragSend" onclick="askRag()">提问</button>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -408,6 +671,128 @@
         setBusy(button, false);
       }
     });
+
+    /* ========== RAG 知识库问答 ========== */
+    const ragMessages = document.getElementById("ragMessages");
+    const ragInput = document.getElementById("ragInput");
+    const ragBody = document.getElementById("ragBody");
+    const ragToggle = document.getElementById("ragToggle");
+    let ragSession = [];
+    let ragLoading = false;
+
+    function toggleRag() {
+      ragBody.classList.toggle("open");
+      ragToggle.classList.toggle("open");
+    }
+
+    function askQuick(question) {
+      ragInput.value = question;
+      askRag();
+    }
+
+    function renderRagMessages() {
+      if (ragSession.length === 0) {
+        ragMessages.innerHTML = `
+          <div class="rag-empty">
+            <div class="rag-empty-icon">💡</div>
+            <div>试试提问：产品有哪些认证？支持定制吗？</div>
+          </div>`;
+        return;
+      }
+      ragMessages.innerHTML = "";
+      ragSession.forEach(msg => {
+        const div = document.createElement("div");
+        div.className = `rag-msg ${msg.role}`;
+        const avatar = msg.role === "user" ? "我" : "📦";
+        let bubbleContent = msg.content;
+        if (msg.sources && msg.sources.length > 0) {
+          const sourceTags = msg.sources.map(s => `<span class="source-tag">${s.title || "文档"}</span>`).join("");
+          bubbleContent += `<div class="source">📎 来源：${sourceTags}</div>`;
+        }
+        div.innerHTML = `
+          <div class="rag-avatar">${avatar}</div>
+          <div class="rag-bubble">${bubbleContent}</div>
+        `;
+        ragMessages.appendChild(div);
+      });
+      ragMessages.scrollTop = ragMessages.scrollHeight;
+    }
+
+    function addTypingIndicator() {
+      const div = document.createElement("div");
+      div.className = "rag-msg assistant";
+      div.id = "ragTyping";
+      div.innerHTML = `
+        <div class="rag-avatar">📦</div>
+        <div class="rag-bubble"><div class="rag-typing"><span></span><span></span><span></span></div></div>
+      `;
+      ragMessages.appendChild(div);
+      ragMessages.scrollTop = ragMessages.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      const el = document.getElementById("ragTyping");
+      if (el) el.remove();
+    }
+
+    async function askRag() {
+      const question = ragInput.value.trim();
+      if (!question || ragLoading) return;
+      ragLoading = true;
+      ragSend.disabled = true;
+      ragSession.push({ role: "user", content: question });
+      renderRagMessages();
+      ragInput.value = "";
+      addTypingIndicator();
+
+      try {
+        const res = await fetch("/api/v1/knowledge/chat/stream", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "X-API-Token": document.getElementById("token").value
+          },
+          body: JSON.stringify({ question, conversationId: "rag-knowledge-base" })
+        });
+        if (!res.ok) throw new Error(`${res.status}`);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let answer = "";
+        const sources = [];
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          for (const line of chunk.split(/\r?\n/)) {
+            if (!line.startsWith("data:")) continue;
+            try {
+              const eventData = JSON.parse(line.slice(5));
+              if (eventData.type === "TOKEN") answer += eventData.content;
+              if (eventData.type === "ROUTE" && eventData.route) {
+                const match = eventData.route.reason && eventData.route.reason.match(/(\d+)\s*个相关文档/);
+                if (match) sources.push({ title: `${match[1]} 个相关文档块` });
+              }
+            } catch (e) { /* skip malformed */ }
+          }
+          removeTypingIndicator();
+          ragSession.push({ role: "assistant", content: answer, sources });
+          renderRagMessages();
+          addTypingIndicator();
+        }
+        removeTypingIndicator();
+        if (!answer) throw new Error("未收到回答");
+        ragSession[ragSession.length - 1] = { role: "assistant", content: answer, sources };
+        renderRagMessages();
+      } catch (error) {
+        removeTypingIndicator();
+        ragSession.push({ role: "assistant", content: `提问失败：${error.message}` });
+        renderRagMessages();
+      } finally {
+        ragLoading = false;
+        ragSend.disabled = false;
+      }
+    }
 
     checkHealth();
   </script>
