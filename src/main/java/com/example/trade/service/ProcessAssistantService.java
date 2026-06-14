@@ -147,6 +147,7 @@ public class ProcessAssistantService {
                 preferredModel,
                 false
         ));
+        //AI 指标埋点 —— 通过 Micrometer 统计路由和调用的关键指标。
         metrics.routed(ScenarioType.FLOW, route.selectedModel());
         return route;
     }
