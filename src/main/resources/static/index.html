@@ -6,268 +6,267 @@
   <title>外贸销售商机工作台</title>
   <style>
     :root {
-      --bg: #f4f6f8;
+      --bg: #f8f9fb;
       --panel: #ffffff;
-      --text: #17202a;
-      --muted: #667085;
-      --line: #d8dee8;
-      --blue: #175cd3;
-      --green: #16794c;
-      --amber: #b54708;
-      --red: #b42318;
-      --purple: #6d28d9;
-      --purple-light: #f5f3ff;
-      --purple-border: #ddd6fe;
+      --text: #1a1d23;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+      --red: #dc2626;
+      --purple: #7c3aed;
+      --purple-light: #faf5ff;
+      --purple-border: #e9d5ff;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      margin: 0;
-      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
+      line-height: 1.5;
     }
     header {
-      height: 72px;
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
+      padding: 0 20px;
       border-bottom: 1px solid var(--line);
       background: var(--panel);
     }
-    h1 { margin: 0; font-size: 22px; letter-spacing: 0; }
-    .health { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); }
+    h1 { font-size: 18px; font-weight: 600; }
+    .health { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); }
     .dot.ok { background: var(--green); }
     .dot.bad { background: var(--red); }
     main {
       display: grid;
-      grid-template-columns: 390px minmax(0, 1fr);
-      gap: 16px;
-      max-width: 1280px;
+      grid-template-columns: 360px 1fr 320px;
+      gap: 12px;
+      max-width: 1600px;
       margin: 0 auto;
-      padding: 18px;
+      padding: 12px;
+      align-items: stretch; /* 子元素等高 */
+      min-height: calc(100vh - 80px); /* 占据大部分视口高度 */
     }
     section {
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 8px;
-      padding: 16px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
     }
-    h2 { margin: 0 0 12px; font-size: 16px; }
-    h3 { margin: 0; font-size: 14px; }
-    label { display: block; margin: 11px 0 6px; color: var(--muted); font-size: 13px; }
+    h2 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+    h3 { font-size: 13px; font-weight: 600; }
+    label { display: block; margin: 8px 0 4px; color: var(--muted); font-size: 12px; font-weight: 500; }
     input, textarea, select {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 6px;
-      padding: 9px 10px;
+      padding: 8px 10px;
       font: inherit;
+      font-size: 13px;
       background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    textarea { min-height: 145px; resize: vertical; line-height: 1.5; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+    textarea { min-height: 180px; resize: vertical; line-height: 1.5; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
     button {
       border: 0;
       border-radius: 6px;
-      padding: 10px;
+      padding: 8px 12px;
       font: inherit;
-      font-weight: 700;
+      font-weight: 600;
+      font-size: 13px;
       color: #fff;
       background: var(--blue);
       cursor: pointer;
+      transition: opacity 0.15s;
     }
+    button:hover { opacity: 0.9; }
     button.secondary { background: var(--green); }
-    button.neutral { background: #475467; }
+    button.neutral { background: #4b5563; }
     button.purple { background: var(--purple); }
-    button:disabled { opacity: .55; cursor: wait; }
+    button:disabled { opacity: 0.5; cursor: wait; }
     .board {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: 8px;
+      margin-bottom: 10px;
     }
     .metric {
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px;
-      background: #fbfcfe;
-      min-height: 82px;
+      border-radius: 6px;
+      padding: 10px;
+      background: #fafbfc;
     }
-    .metric .name { color: var(--muted); font-size: 12px; }
-    .metric .value { margin-top: 8px; font-size: 24px; font-weight: 800; }
-    .metric .small { margin-top: 6px; color: var(--muted); font-size: 12px; word-break: break-word; }
-    .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+    .metric .name { color: var(--muted); font-size: 11px; font-weight: 500; }
+    .metric .value { margin-top: 4px; font-size: 20px; font-weight: 700; }
+    .metric .small { margin-top: 4px; color: var(--muted); font-size: 11px; word-break: break-word; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 8px; }
     .tab {
       border: 1px solid var(--line);
       background: #fff;
       color: var(--text);
-      padding: 8px 10px;
+      padding: 6px 12px;
       border-radius: 6px;
-      font-weight: 700;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
     }
     .tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
     pre {
       margin: 0;
-      min-height: 480px;
-      max-height: calc(100vh - 260px);
+      flex: 1;
+      min-height: 420px;
       overflow: auto;
-      padding: 14px;
-      border-radius: 8px;
-      background: #101828;
-      color: #edf3ff;
+      padding: 12px;
+      border-radius: 6px;
+      background: #1e293b;
+      color: #e2e8f0;
       white-space: pre-wrap;
       word-break: break-word;
-      line-height: 1.55;
-      font-size: 13px;
+      line-height: 1.6;
+      font-size: 12px;
+      font-family: "SF Mono", Monaco, Consolas, monospace;
     }
     .tasks {
       display: grid;
-      gap: 8px;
-      max-height: calc(100vh - 260px);
+      gap: 6px;
+      flex: 1;
+      min-height: 420px;
       overflow: auto;
     }
     .task {
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px;
+      border-radius: 6px;
+      padding: 10px;
       background: #fff;
     }
-    .task-title { font-weight: 800; }
-    .task-meta { margin-top: 5px; color: var(--muted); font-size: 12px; }
-    .task ul { margin: 8px 0 0 18px; padding: 0; color: #344054; }
+    .task-title { font-weight: 700; font-size: 13px; }
+    .task-meta { margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .task ul { margin: 6px 0 0 16px; padding: 0; color: #374151; font-size: 12px; }
     .hidden { display: none; }
 
-    /* ========== RAG 知识库问答面板 ========== */
+    /* ========== 右侧 RAG 知识库问答面板 ========== */
+    .rag-section {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
     .rag-panel {
-      margin-top: 16px;
       border: 1px solid var(--purple-border);
-      border-radius: 10px;
+      border-radius: 8px;
       background: var(--purple-light);
       overflow: hidden;
-      transition: box-shadow 0.2s;
-    }
-    .rag-panel:focus-within {
-      box-shadow: 0 0 0 3px rgba(109,40,217,0.15);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
     }
     .rag-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px;
-      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
-      cursor: pointer;
-      user-select: none;
+      padding: 10px 12px;
+      background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+      flex-shrink: 0;
     }
     .rag-header-left {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
     .rag-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
       background: var(--purple);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 13px;
       color: #fff;
       flex-shrink: 0;
     }
     .rag-title-area h3 {
-      font-size: 14px;
-      font-weight: 700;
-      color: #4c1d95;
-    }
-    .rag-title-area p {
-      margin: 2px 0 0;
-      font-size: 12px;
-      color: #7c3aed;
-    }
-    .rag-toggle {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      border: 1px solid var(--purple-border);
-      background: #fff;
-      color: var(--purple);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: transform 0.25s;
-      font-size: 14px;
-    }
-    .rag-toggle.open {
-      transform: rotate(180deg);
+      font-size: 13px;
+      font-weight: 600;
+      color: #5b21b6;
     }
     .rag-body {
-      max-height: 0;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
       overflow: hidden;
-      transition: max-height 0.35s ease;
-    }
-    .rag-body.open {
-      max-height: 480px;
+      min-height: 420px;
     }
     .rag-input-area {
       display: flex;
-      gap: 8px;
-      padding: 12px 16px;
+      gap: 6px;
+      padding: 8px 12px;
       border-top: 1px solid var(--purple-border);
       background: #faf8ff;
+      flex-shrink: 0;
     }
     .rag-input-area input {
       flex: 1;
       border: 1px solid var(--purple-border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 13px;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 12px;
       background: #fff;
       color: var(--text);
     }
     .rag-input-area input:focus {
       outline: none;
       border-color: var(--purple);
-      box-shadow: 0 0 0 3px rgba(109,40,217,0.12);
+      box-shadow: 0 0 0 2px rgba(124,58,237,0.1);
     }
     .rag-input-area input::placeholder {
       color: #a78bfa;
     }
     .rag-input-area button {
       flex-shrink: 0;
-      padding: 10px 18px;
-      font-size: 13px;
-      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 12px;
+      border-radius: 6px;
     }
     .rag-messages {
-      max-height: 340px;
+      flex: 1;
       overflow-y: auto;
-      padding: 12px 16px;
+      padding: 8px 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
       background: #faf8ff;
+      min-height: 320px;
     }
     .rag-msg {
       display: flex;
-      gap: 8px;
-      max-width: 92%;
+      gap: 6px;
+      max-width: 90%;
     }
     .rag-msg.user {
       align-self: flex-end;
       flex-direction: row-reverse;
     }
     .rag-avatar {
-      width: 26px;
-      height: 26px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
+      font-size: 10px;
       flex-shrink: 0;
     }
     .rag-msg.user .rag-avatar {
@@ -279,10 +278,10 @@
       color: #fff;
     }
     .rag-bubble {
-      padding: 10px 14px;
-      border-radius: 12px;
-      font-size: 13px;
-      line-height: 1.6;
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1.5;
       word-break: break-word;
     }
     .rag-msg.user .rag-bubble {
@@ -297,71 +296,75 @@
       border-bottom-left-radius: 4px;
     }
     .rag-bubble .source {
-      margin-top: 8px;
-      padding-top: 6px;
+      margin-top: 6px;
+      padding-top: 4px;
       border-top: 1px dashed var(--purple-border);
-      font-size: 11px;
+      font-size: 10px;
       color: var(--muted);
     }
     .rag-bubble .source-tag {
       display: inline-block;
       background: var(--purple-light);
       color: var(--purple);
-      padding: 1px 7px;
-      border-radius: 4px;
-      font-size: 11px;
-      margin-right: 4px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 10px;
+      margin-right: 3px;
     }
     .rag-typing {
       display: flex;
       align-items: center;
-      gap: 4px;
-      padding: 8px 0;
+      gap: 3px;
+      padding: 6px 0;
     }
     .rag-typing span {
-      width: 6px;
-      height: 6px;
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
       background: var(--purple);
       opacity: 0.4;
-      animation: rag-typing 1.4s infinite;
+      animation: rag-typing 1.2s infinite;
     }
-    .rag-typing span:nth-child(2) { animation-delay: 0.2s; }
-    .rag-typing span:nth-child(3) { animation-delay: 0.4s; }
+    .rag-typing span:nth-child(2) { animation-delay: 0.15s; }
+    .rag-typing span:nth-child(3) { animation-delay: 0.3s; }
     @keyframes rag-typing {
       0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
       40% { opacity: 1; transform: scale(1); }
     }
     .rag-empty {
       text-align: center;
-      padding: 28px 0;
+      padding: 20px 0;
       color: #a78bfa;
-      font-size: 13px;
+      font-size: 12px;
     }
     .rag-empty .rag-empty-icon {
-      font-size: 28px;
-      margin-bottom: 8px;
+      font-size: 24px;
+      margin-bottom: 6px;
     }
     .rag-quick {
       display: flex;
-      gap: 6px;
+      gap: 4px;
       flex-wrap: wrap;
-      padding: 0 16px 10px;
+      padding: 0 12px 8px;
       background: #faf8ff;
     }
     .rag-quick-btn {
       border: 1px solid var(--purple-border);
       background: #fff;
       color: var(--purple);
-      padding: 5px 12px;
-      border-radius: 20px;
-      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 16px;
+      font-size: 11px;
       cursor: pointer;
       transition: all 0.15s;
     }
     .rag-quick-btn:hover {
       background: var(--purple);
       color: #fff;
+    }
+
+    @media (max-width: 1200px) {
+      main { grid-template-columns: 360px 1fr; }
     }
 
     @media (max-width: 980px) {
@@ -469,20 +472,20 @@
       <pre id="summary">等待分析...</pre>
       <div id="tasks" class="tasks hidden"></div>
       <pre id="replyBox" class="hidden">等待生成...</pre>
+    </section>
 
-      <!-- ========== RAG 产品知识库问答 ========== -->
+    <!-- ========== 右侧：产品知识库问答 ========== -->
+    <section class="rag-section">
       <div class="rag-panel" id="ragPanel">
-        <div class="rag-header" id="ragHeader" onclick="toggleRag()">
+        <div class="rag-header" id="ragHeader">
           <div class="rag-header-left">
             <div class="rag-icon">📦</div>
             <div class="rag-title-area">
               <h3>产品知识库问答</h3>
-              <p>基于已上传的产品文档，精准回答参数、认证、工艺等问题</p>
             </div>
           </div>
-          <button class="rag-toggle" id="ragToggle" onclick="event.stopPropagation(); toggleRag()">▼</button>
         </div>
-        <div class="rag-body" id="ragBody">
+        <div class="rag-body open" id="ragBody">
           <div class="rag-messages" id="ragMessages">
             <div class="rag-empty">
               <div class="rag-empty-icon">💡</div>
@@ -672,18 +675,11 @@
       }
     });
 
-    /* ========== RAG 知识库问答 ========== */
+    /* ========== RAG 知识库问答（右侧面板，始终展开） ========== */
     const ragMessages = document.getElementById("ragMessages");
     const ragInput = document.getElementById("ragInput");
-    const ragBody = document.getElementById("ragBody");
-    const ragToggle = document.getElementById("ragToggle");
     let ragSession = [];
     let ragLoading = false;
-
-    function toggleRag() {
-      ragBody.classList.toggle("open");
-      ragToggle.classList.toggle("open");
-    }
 
     function askQuick(question) {
       ragInput.value = question;
