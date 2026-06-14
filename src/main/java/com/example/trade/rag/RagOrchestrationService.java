@@ -11,12 +11,17 @@ import com.example.trade.service.ChatOrchestrationService;
 import com.example.trade.service.PromptFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * RAG 编排服务 —— 实现检索增强生成（Retrieval-Augmented Generation）。
@@ -49,6 +54,7 @@ public class RagOrchestrationService {
     private final ChatOrchestrationService chatService;
     private final PromptFactory promptFactory;
     private final int maxResults;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     public RagOrchestrationService(
             EmbeddingService embeddingService,
@@ -57,7 +63,8 @@ public class RagOrchestrationService {
             RerankService rerankService,
             ChatOrchestrationService chatService,
             PromptFactory promptFactory,
-            com.example.trade.config.AiGatewayProperties properties
+            com.example.trade.config.AiGatewayProperties properties,
+            RedisTemplate<String, Object> redisTemplate
     ) {
         this.embeddingService = embeddingService;
         this.vectorStoreClient = vectorStoreClient;
@@ -66,16 +73,19 @@ public class RagOrchestrationService {
         this.chatService = chatService;
         this.promptFactory = promptFactory;
         this.maxResults = properties.getRag().getMaxResults();
+        this.redisTemplate = redisTemplate;
     }
 
     /**
      * 检索增强的同步问答。
      *
      * 流程：
+     * 0. 先查 Redis 缓存（key: rag:answer:md5(question)），命中则直接返回
      * 1. 将问题转为向量
      * 2. 在 Milvus 搜索相关文档块
      * 3. 构建增强 Prompt（系统提示 + 检索结果 + 历史对话 + 当前问题）
      * 4. 调用 AI 模型生成回答
+     * 5. 将回答写入 Redis 缓存（TTL: 24 小时）
      *
      * @param request 用户请求
      * @return AI 回答
@@ -83,20 +93,32 @@ public class RagOrchestrationService {
     public Mono<ChatResponse> completeWithRetrieval(ChatRequest request) {
         log.info("🔍 RAG 问答开始: {}", request.question());
 
-        // 步骤 1 + 2: 混合检索（向量 + BM25）
-        return hybridSearchService.search(request.question(), maxResults)
-                .flatMap(matches -> {
-                    log.info("📚 混合检索完成，共 {} 条结果", matches.size());
+        String question = request.question();
+        String cacheKey = generateRagCacheKey(question);
 
-                    // 步骤 3: Rerank 重排序
-                    return rerankService.rerank(request.question(), matches)
-                            .flatMap(reranked -> {
-                                log.info("🔄 Rerank 完成，最终 {} 条结果", reranked.size());
+        // 先查缓存
+        return getRagAnswerFromCache(cacheKey)
+                .switchIfEmpty(
+                    // 未命中，执行完整 RAG 流程
+                    Mono.defer(() -> {
+                        // 步骤 1 + 2: 混合检索（向量 + BM25）
+                        return hybridSearchService.search(question, maxResults)
+                                .flatMap(matches -> {
+                                    log.info("📚 混合检索完成，共 {} 条结果", matches.size());
 
-                                // 步骤 4: 构建增强 Prompt 并调用 AI
-                                return completeWithMatches(request, reranked);
-                            });
-                })
+                                    // 步骤 3: Rerank 重排序
+                                    return rerankService.rerank(question, matches)
+                                            .flatMap(reranked -> {
+                                                log.info("🔄 Rerank 完成，最终 {} 条结果", reranked.size());
+
+                                                // 步骤 4: 构建增强 Prompt 并调用 AI
+                                                return completeWithMatches(request, reranked);
+                                            });
+                                });
+                    })
+                    // 成功后写入缓存
+                    .doOnSuccess(response -> saveRagAnswerToCache(cacheKey, response))
+                )
                 .onErrorMap(e -> new RuntimeException("RAG 问答失败: " + e.getMessage(), e));
     }
 
@@ -256,5 +278,67 @@ public class RagOrchestrationService {
         sb.append("注意：回答时引用来源（如\"根据文档X\"），提高可信度。");
 
         return sb.toString();
+    }
+
+    /**
+     * 生成 RAG 回答缓存 key。
+     *
+     * 格式：rag:answer:md5(question)
+     * 使用 MD5 保证 key 长度固定且唯一。
+     *
+     * @param question 问题
+     * @return 缓存 key
+     */
+    private String generateRagCacheKey(String question) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] hash = md.digest(question.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder("rag:answer:");
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // MD5 一定存在，不会走到这里
+            return "rag:answer:" + question.hashCode();
+        }
+    }
+
+    /**
+     * 从 Redis 缓存获取 RAG 回答。
+     *
+     * @param cacheKey 缓存 key
+     * @return 缓存的回答，未命中返回空 Mono
+     */
+    private Mono<ChatResponse> getRagAnswerFromCache(String cacheKey) {
+        try {
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                log.info("✅ RAG 回答缓存命中: {}", cacheKey);
+                if (cached instanceof ChatResponse) {
+                    return Mono.just((ChatResponse) cached);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ 读取 RAG 回答缓存失败: {}", e.getMessage());
+        }
+        return Mono.empty();
+    }
+
+    /**
+     * 将 RAG 回答写入 Redis 缓存。
+     *
+     * 缓存策略：TTL 24 小时（避免缓存过期后返回过时信息）
+     *
+     * @param cacheKey 缓存 key
+     * @param response 回答
+     */
+    private void saveRagAnswerToCache(String cacheKey, ChatResponse response) {
+        try {
+            redisTemplate.opsForValue().set(cacheKey, response, 24, TimeUnit.HOURS);
+            log.info("✅ RAG 回答已缓存: {}, TTL: 24h", cacheKey);
+        } catch (Exception e) {
+            log.warn("⚠️ 写入 RAG 回答缓存失败: {}", e.getMessage());
+        }
     }
 }

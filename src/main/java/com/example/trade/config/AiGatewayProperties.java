@@ -740,6 +740,9 @@ public class AiGatewayProperties {
             @Max(65535)
             private int port = 19530;
 
+            /** 数据库名称（Database），默认 "default"。Milvus 2.x 支持多数据库隔离 */
+            private String database = "default";
+
             /** 用户名（可选，本地部署通常不需要） */
             private String username;
 
@@ -765,6 +768,14 @@ public class AiGatewayProperties {
 
             public void setPort(int port) {
                 this.port = port;
+            }
+
+            public String getDatabase() {
+                return database;
+            }
+
+            public void setDatabase(String database) {
+                this.database = database;
             }
 
             public String getUsername() {

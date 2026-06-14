@@ -9,6 +9,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,6 +69,7 @@ public class EmbeddingService {
     private final int dimension;
     private final MeterRegistry meterRegistry;
     private final EmbeddingCostMonitor costMonitor;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     // 降级熔断器：记录主模型连续失败次数
     private final ConcurrentHashMap<String, Integer> failureCounters = new ConcurrentHashMap<>();
@@ -76,7 +81,8 @@ public class EmbeddingService {
             ObjectMapper objectMapper,
             AiGatewayProperties properties,
             MeterRegistry meterRegistry,
-            EmbeddingCostMonitor costMonitor
+            EmbeddingCostMonitor costMonitor,
+            RedisTemplate<String, Object> redisTemplate
     ) {
         this.primaryConfig = properties.getRag().getEmbedding();
         this.fallbackConfig = properties.getRag().getFallbackEmbedding();
@@ -84,6 +90,7 @@ public class EmbeddingService {
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
         this.costMonitor = costMonitor;
+        this.redisTemplate = redisTemplate;
 
         // 主模型 WebClient
         this.primaryWebClient = webClientBuilder
@@ -102,10 +109,12 @@ public class EmbeddingService {
      * 将单条文本转换为向量。
      *
      * 生产级流程：
+     * 0. 先查 Redis 缓存（key: embedding:md5(text)），命中则直接返回
      * 1. 优先调用主模型（text-embedding-v3）
      * 2. 主模型失败时，自动降级到 Mock 服务
      * 3. 熔断机制：连续失败 3 次后，直接走降级
      * 4. 监控指标：记录每次调用的耗时和成功率
+     * 5. 成功后写入 Redis 缓存（永久有效）
      *
      * @param text 要转换的文本
      * @return 浮点数组表示的向量
@@ -114,30 +123,40 @@ public class EmbeddingService {
         Timer.Sample sample = Timer.start(meterRegistry);
         String metricsKey = "embedding.embed";
 
-        return embedWithPrimary(text)
-                .doOnSuccess(embedding -> {
-                    sample.stop(Timer.builder(metricsKey)
-                            .tag("model", primaryConfig.getModel())
-                            .tag("status", "success")
-                            .register(meterRegistry));
-                    log.debug("✅ 主模型 Embedding 成功: model={}, dim={}", primaryConfig.getModel(), embedding.length);
-                })
-                .onErrorResume(error -> {
-                    // 主模型失败，记录降级
-                    meterRegistry.counter(metricsKey + ".fallback",
-                            "model", primaryConfig.getModel(),
-                            "reason", error.getMessage()).increment();
+        // 生成缓存 key
+        String cacheKey = generateCacheKey(text);
 
-                    log.warn("⚠️ 主模型失败，降级到 Mock: {}", error.getMessage());
-                    return embedWithFallback(text);
-                })
-                .doOnError(error -> {
-                    sample.stop(Timer.builder(metricsKey)
-                            .tag("model", "fallback")
-                            .tag("status", "error")
-                            .register(meterRegistry));
-                    log.error("❌ Embedding 失败: {}", error.getMessage());
-                });
+        // 先查缓存
+        return getFromCache(cacheKey)
+                .switchIfEmpty(
+                    // 未命中，调用 API
+                    embedWithPrimary(text)
+                            .doOnSuccess(embedding -> {
+                                sample.stop(Timer.builder(metricsKey)
+                                        .tag("model", primaryConfig.getModel())
+                                        .tag("status", "success")
+                                        .register(meterRegistry));
+                                log.debug("✅ 主模型 Embedding 成功: model={}, dim={}", primaryConfig.getModel(), embedding.length);
+                            })
+                            .onErrorResume(error -> {
+                                // 主模型失败，记录降级
+                                meterRegistry.counter(metricsKey + ".fallback",
+                                        "model", primaryConfig.getModel(),
+                                        "reason", error.getMessage()).increment();
+
+                                log.warn("⚠️ 主模型失败，降级到 Mock: {}", error.getMessage());
+                                return embedWithFallback(text);
+                            })
+                            .doOnError(error -> {
+                                sample.stop(Timer.builder(metricsKey)
+                                        .tag("model", "fallback")
+                                        .tag("status", "error")
+                                        .register(meterRegistry));
+                                log.error("❌ Embedding 失败: {}", error.getMessage());
+                            })
+                            // 成功后写入缓存
+                            .doOnSuccess(embedding -> saveToCache(cacheKey, embedding))
+                );
     }
 
     /**
@@ -466,5 +485,78 @@ public class EmbeddingService {
         long englishChars = text.chars().filter(c -> c <= 127).count();
 
         return (int) (chineseChars * 1.5 + englishChars / 4);
+    }
+
+    /**
+     * 生成 Embedding 缓存 key。
+     *
+     * 格式：embedding:md5(text)
+     * 使用 MD5 保证 key 长度固定且唯一。
+     *
+     * @param text 文本
+     * @return 缓存 key
+     */
+    private String generateCacheKey(String text) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] hash = md.digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder("embedding:");
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            // MD5 一定存在，不会走到这里
+            return "embedding:" + text.hashCode();
+        }
+    }
+
+    /**
+     * 从 Redis 缓存获取 Embedding 向量。
+     *
+     * @param cacheKey 缓存 key
+     * @return 缓存的向量，未命中返回空 Mono
+     */
+    @SuppressWarnings("unchecked")
+    private Mono<float[]> getFromCache(String cacheKey) {
+        try {
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                log.debug("✅ Embedding 缓存命中: {}", cacheKey);
+                meterRegistry.counter("embedding.cache.hit").increment();
+                if (cached instanceof float[]) {
+                    return Mono.just((float[]) cached);
+                } else if (cached instanceof List) {
+                    // 反序列化时可能变成 List<Number>
+                    List<Number> list = (List<Number>) cached;
+                    float[] embedding = new float[list.size()];
+                    for (int i = 0; i < list.size(); i++) {
+                        embedding[i] = list.get(i).floatValue();
+                    }
+                    return Mono.just(embedding);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ 读取 Embedding 缓存失败: {}", e.getMessage());
+        }
+        meterRegistry.counter("embedding.cache.miss").increment();
+        return Mono.empty();
+    }
+
+    /**
+     * 将 Embedding 向量写入 Redis 缓存。
+     *
+     * 缓存策略：永久有效（Embedding 向量不会变化）
+     *
+     * @param cacheKey 缓存 key
+     * @param embedding 向量
+     */
+    private void saveToCache(String cacheKey, float[] embedding) {
+        try {
+            redisTemplate.opsForValue().set(cacheKey, embedding);
+            log.debug("✅ Embedding 已缓存: {}", cacheKey);
+        } catch (Exception e) {
+            log.warn("⚠️ 写入 Embedding 缓存失败: {}", e.getMessage());
+        }
     }
 }

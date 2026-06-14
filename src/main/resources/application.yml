@@ -19,6 +19,29 @@ spring:
     dashscope:
       # 禁用 Spring AI 的 DashScope 自动配置（使用自定义 AI 网关）
       enabled: false
+  data:
+    redis:
+      # Redis 服务地址
+      host: ${REDIS_HOST:127.0.0.1}
+      # Redis 端口
+      port: ${REDIS_PORT:6379}
+      # Redis 密码
+      password: ${REDIS_PASSWORD:123456}
+      # 数据库索引（0-15）
+      database: 0
+      # 连接超时时间
+      timeout: 10s
+      # 连接池配置
+      lettuce:
+        pool:
+          # 最大连接数
+          max-active: 16
+          # 最大空闲连接数
+          max-idle: 8
+          # 最小空闲连接数
+          min-idle: 4
+          # 连接空闲回收时间
+          max-wait: 3s
 
 # ============================================
 # 日志配置
@@ -174,6 +197,8 @@ ai:
         host: ${MILVUS_HOST:127.0.0.1}
         # gRPC 端口（默认 19530）
         port: ${MILVUS_PORT:19530}
+        # 数据库名称（Milvus 2.x 支持多数据库隔离）
+        database: ${MILVUS_DATABASE:trade}
         # 认证信息
         username: ${MILVUS_USERNAME:trade}
         password: ${MILVUS_PASSWORD:123456}

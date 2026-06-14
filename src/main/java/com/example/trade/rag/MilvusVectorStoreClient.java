@@ -70,14 +70,21 @@ public class MilvusVectorStoreClient {
     @PostConstruct
     public void init() {
         try {
-            // 使用 withHost + withPort 连接（gRPC 端口 19530）
-            ConnectParam connectParam = ConnectParam.newBuilder()
+            // 使用 withHost + withPort + withDatabase 连接（gRPC 端口 19530）
+            ConnectParam.Builder connectBuilder = ConnectParam.newBuilder()
                     .withHost(milvusProperties.getHost())
                     .withPort(milvusProperties.getPort())
-                    .withConnectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                    .build();
-            this.milvusClient = new MilvusServiceClient(connectParam);
-            log.info("✅ Milvus 连接成功: {}:{}", milvusProperties.getHost(), milvusProperties.getPort());
+                    .withDatabaseName(milvusProperties.getDatabase()) // 指定数据库
+                    .withConnectTimeout(10, java.util.concurrent.TimeUnit.SECONDS);
+
+            // 如果配置了用户名和密码，则添加认证信息
+            if (milvusProperties.getUsername() != null && !milvusProperties.getUsername().isEmpty()) {
+                connectBuilder.withAuthorization(milvusProperties.getUsername(), milvusProperties.getPassword());
+            }
+
+            this.milvusClient = new MilvusServiceClient(connectBuilder.build());
+            log.info("✅ Milvus 连接成功: {}:{}, database={}",
+                    milvusProperties.getHost(), milvusProperties.getPort(), milvusProperties.getDatabase());
 
             // 确保集合和索引存在
             ensureCollectionExists();
