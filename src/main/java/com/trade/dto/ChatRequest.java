@@ -1,6 +1,7 @@
 package com.trade.dto;
 
 import com.trade.enums.ModelProvider;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -9,12 +10,14 @@ import java.util.List;
 import java.util.Map;
 
 /** 智能问答请求 DTO —— 用户通过 /api/v1/chat/completions 或 /stream 提交的问题 */
+@Schema(description = "智能问答请求")
 public record ChatRequest(
         /**
          * 会话 ID —— 标识一轮完整的对话上下文。
          * 同一个 conversationId 下的多次请求，系统会自动携带历史对话（来自 ConversationMemoryService 缓存），
          * 实现多轮连续对话。为空或空白时系统自动生成 UUID。
          */
+        @Schema(description = "会话 ID，为空时自动生成", example = "conv-123")
         String conversationId,
 
         /**
@@ -22,7 +25,9 @@ public record ChatRequest(
          * 必填，最大 20000 字符。经过 @NotBlank 校验，空字符串或空白字符会被拦截。
          * 系统会将其包装为 USER 角色消息，追加到 prompt 消息列表末尾发给 AI 模型。
          */
-        @NotBlank @Size(max = 20000) String question,
+        @NotBlank @Size(max = 20000)
+        @Schema(description = "用户问题（必填，最大 20000 字符）", example = "LED面板灯的功率是多少？")
+        String question,
 
         /**
          * 额外历史消息 —— 客户端可选携带的补充对话。
@@ -38,6 +43,7 @@ public record ChatRequest(
          * 如果该模型当前可用（API Key 已配置），路由器会优先使用它；
          * 如果不可用或未配置，路由器会自动切换到打分最高的模型。
          */
+        @Schema(description = "首选模型", example = "DEEPSEEK")
         ModelProvider preferredModel,
 
         /**
@@ -64,6 +70,7 @@ public record ChatRequest(
          *
          * 注意：需要确保 Milvus 服务已启动且已摄入文档，否则检索结果为空。
          */
+        @Schema(description = "是否使用知识库检索增强", example = "true")
         Boolean useKnowledgeBase,
 
         /**

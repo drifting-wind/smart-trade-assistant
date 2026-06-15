@@ -5,6 +5,13 @@ import com.trade.trade.dto.OpportunityAnalysisResponse;
 import com.trade.trade.dto.SalesPlanResponse;
 import com.trade.trade.dto.TradeInquiryRequest;
 import com.trade.trade.service.TradeSalesService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -38,6 +45,7 @@ import reactor.core.publisher.Mono;
 @Validated
 @RestController
 @RequestMapping("/api/v1/trade")
+@Tag(name = "外贸销售", description = "外贸商机分析、销售计划、客户回复生成")
 public class TradeSalesController {
 
     /**
@@ -102,6 +110,43 @@ public class TradeSalesController {
      * - JSON 解析失败时返回默认值（60 分、中等风险、需跟进），保证服务不中断
      */
     @PostMapping("/opportunities/analyze")
+    @Operation(
+            summary = "商机分析",
+            description = "AI 评估外贸询盘质量，返回打分、风险等级、购买意图、推荐产品等结构化结果"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "商机分析成功",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = OpportunityAnalysisResponse.class),
+                            examples = @ExampleObject(
+                                    name = "成功响应",
+                                    value = """
+                                            {
+                                              "opportunityId": "ABC-LIGHTING-INC-LED-PANEL-60X60",
+                                              "leadScore": 78,
+                                              "riskLevel": "MEDIUM",
+                                              "buyingIntent": "HIGH_INTENT",
+                                              "summary": "客户有明确采购数量和目的港，意向较高",
+                                              "recommendedProducts": ["LED Panel 60x60 40W"],
+                                              "missingInformation": ["确认付款条件"],
+                                              "nextActions": ["发送阶梯报价表"]
+                                            }
+                                            """
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "请求参数校验失败"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "未授权"
+            )
+    })
     public Mono<OpportunityAnalysisResponse> analyze(@Valid @RequestBody TradeInquiryRequest request) {
         return tradeSalesService.analyze(request);
     }
@@ -151,6 +196,22 @@ public class TradeSalesController {
      * - JSON 解析失败时返回默认销售模板，保证服务不中断
      */
     @PostMapping("/opportunities/sales-plan")
+    @Operation(
+            summary = "销售推进计划",
+            description = "AI 将询盘转化为可执行的销售推进计划，包含任务拆解、谈判要点、单证准备"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "销售计划生成成功",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = SalesPlanResponse.class)
+                    )
+            ),
+            @ApiResponse(responseCode = "400", description = "请求参数校验失败"),
+            @ApiResponse(responseCode = "401", description = "未授权")
+    })
     public Mono<SalesPlanResponse> salesPlan(@Valid @RequestBody TradeInquiryRequest request) {
         return tradeSalesService.salesPlan(request);
     }
@@ -205,6 +266,18 @@ public class TradeSalesController {
      * - 邮件生成要求：语气专业、明确下一步、主动索要缺失参数、不虚构最终价格
      */
     @PostMapping(value = "/opportunities/reply/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(
+            summary = "流式生成客户回复邮件",
+            description = "通过 SSE 实时推送 AI 生成的英文邮件正文，适合前端逐字展示"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "SSE 事件流（包含 route、token、done 事件）"
+            ),
+            @ApiResponse(responseCode = "400", description = "请求参数校验失败"),
+            @ApiResponse(responseCode = "401", description = "未授权")
+    })
     public Flux<ServerSentEvent<AiStreamEvent>> streamReply(@Valid @RequestBody TradeInquiryRequest request) {
         return tradeSalesService.streamCustomerReply(request)
                 // 将内部 AiStreamEvent 包装为 HTTP SSE 格式推送给客户端

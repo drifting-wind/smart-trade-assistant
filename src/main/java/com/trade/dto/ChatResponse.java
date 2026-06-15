@@ -1,6 +1,7 @@
 package com.trade.dto;
 
 import com.trade.enums.ModelProvider;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,11 +14,13 @@ import java.util.List;
  *
  * 新增：引用信息列表（citations），支持溯源定位，确保回答"有据可查"。
  */
+@Schema(description = "智能问答响应")
 public record ChatResponse(
         /**
          * 请求 ID —— 本次问答请求的唯一标识（UUID）。
          * 由 AiRequestMapper 在构造 AiPromptRequest 时生成，用于链路追踪和日志关联。
          */
+        @Schema(description = "请求 ID（UUID）", example = "req-123")
         String id,
 
         /**
@@ -25,12 +28,14 @@ public record ChatResponse(
          * 同一个 conversationId 的多轮对话共享历史记忆，
          * 前端可在后续请求中携带此 ID 以延续上下文。
          */
+        @Schema(description = "会话 ID", example = "conv-456")
         String conversationId,
 
         /**
          * 实际使用的 AI 模型 —— DEEPSEEK 或 ALIBABA_BAILIAN。
          * 可能与用户请求中的 preferredModel 不同（如果首选模型不可用，路由器会自动降级）。
          */
+        @Schema(description = "实际使用的 AI 模型", example = "DEEPSEEK")
         ModelProvider model,
 
         /**
@@ -40,6 +45,7 @@ public record ChatResponse(
          *
          * 注意：回答中应包含引用标记（如 [1]、[2]），对应 citations 列表中的引用。
          */
+        @Schema(description = "AI 生成的回答内容", example = "LED面板灯的功率是50W [1]")
         String answer,
 
         /**
