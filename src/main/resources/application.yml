@@ -122,10 +122,10 @@ ai:
       collection-name: trade_knowledge
       # 向量维度（需与 Embedding 模型输出维度一致）
       dimension: 1024
-      # 最大返回结果数
-      max-results: 10
-      # 相似度阈值（低于此值的结果会被过滤）
-      similarity-threshold: 0.5
+      # 最大返回结果数（⭐ 优化：从10减少到5，减少冗余上下文）
+      max-results: 5
+      # 相似度阈值（⭐ 优化：从0.5提高到0.7，只保留高相似度结果）
+      similarity-threshold: 0.7
       # 文本分块配置
       chunk-size: 300      # 每块字符数      若是：结构化文档 200 ~ 400 汉字（别超过 400）
       chunk-overlap: 35    # 块间重叠字符数   仅用来防语义截断，不要过大
@@ -226,7 +226,7 @@ ai:
         base-url: https://dashscope.aliyuncs.com/api/v1
         # API 密钥
         api-key: ${DASHSCOPE_API_KEY:sk-0e1be25b97ed4d7793f199fbbc225b40}
-        # 重排序后取 Top-K
+        # 重排序后取 Top-K（⭐ 优化：从10减少到3，只保留最相关的3条）
         top-k: 3
 
     # 模型列表配置
