@@ -1,0 +1,25 @@
+# ============================================
+# Docker 环境配置
+# ============================================
+
+spring:
+  # Redis 配置
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+
+# AI 网关配置
+ai:
+  gateway:
+    rag:
+      milvus:
+        host: ${AI_GATEWAY_RAG_MILVUS_HOST:milvus}
+        port: ${AI_GATEWAY_RAG_MILVUS_PORT:19530}
+        database: default
