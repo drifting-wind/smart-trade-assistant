@@ -1,11 +1,156 @@
+version: '3.8'
+
 services:
-  smart-trade-assistant:
-    build: .
-    image: smart-trade-assistant:1.0.0
+  # ============================================
+  # 智能外贸助手应用
+  # ============================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-trade-app
     ports:
       - "8080:8080"
     environment:
-      SERVER_PORT: 8080
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
-      BAILIAN_API_KEY: ${BAILIAN_API_KEY}
-      AI_GATEWAY_TOKENS: ${AI_GATEWAY_TOKENS:-dev-token}
+      - SPRING_PROFILES_ACTIVE=docker
+      - TZ=Asia/Shanghai
+      # Redis 配置
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      # Milvus 配置
+      - AI_GATEWAY_RAG_MILVUS_HOST=milvus
+      - AI_GATEWAY_RAG_MILVUS_PORT=19530
+      # 日志级别
+      - LOGGING_LEVEL_ROOT=INFO
+      - LOGGING_LEVEL_COM_TRADE=DEBUG
+    volumes:
+      - app-data:/app/data
+      - app-logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ============================================
+  # Redis - 缓存服务
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: smart-trade-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ============================================
+  # Milvus - 向量数据库
+  # ============================================
+  milvus:
+    image: milvusdb/milvus:v2.4.4
+    container_name: smart-trade-milvus
+    ports:
+      - "19530:19530"  # gRPC
+      - "9091:9091"    # HTTP/REST
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - milvus-data:/var/lib/milvus
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ============================================
+  # etcd - Milvus 元数据存储
+  # ============================================
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: smart-trade-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd-data:/etcd
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # MinIO - Milvus 对象存储
+  # ============================================
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: smart-trade-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - minio-data:/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# ============================================
+# 数据卷
+# ============================================
+volumes:
+  app-data:
+    driver: local
+  app-logs:
+    driver: local
+  redis-data:
+    driver: local
+  milvus-data:
+    driver: local
+  etcd-data:
+    driver: local
+  minio-data:
+    driver: local
+
+# ============================================
+# 网络
+# ============================================
+networks:
+  app-network:
+    driver: bridge
