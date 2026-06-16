@@ -26,7 +26,7 @@ spring:
       # Redis 端口
       port: ${REDIS_PORT:6379}
       # Redis 密码
-      password: ${REDIS_PASSWORD:123456}
+      password: ${REDIS_PASSWORD}
       # 数据库索引（0-15）
       database: 0
       # 连接超时时间
@@ -174,7 +174,7 @@ ai:
         # Embedding API 路径
         path: /embeddings
         # API 密钥（从环境变量读取，保护敏感信息）
-        api-key: ${DASHSCOPE_API_KEY:sk-0e1be25b97ed4d7793f199fbbc225b40}
+        api-key: ${DASHSCOPE_API_KEY}
         # 编码格式：float 或 base64
         encoding-format: float
         # 请求超时时间：30 秒
@@ -260,7 +260,7 @@ ai:
         # DashScope Rerank API 基础 URL
         base-url: https://dashscope.aliyuncs.com/api/v1
         # API 密钥
-        api-key: ${DASHSCOPE_API_KEY:sk-0e1be25b97ed4d7793f199fbbc225b40}
+        api-key: ${DASHSCOPE_API_KEY}
         # 重排序后取 Top-K（⭐ 优化：从10减少到3，只保留最相关的3条）
         top-k: 3
 
@@ -276,7 +276,7 @@ ai:
         # API 路径
         path: ${DEEPSEEK_CHAT_PATH:/chat/completions}
         # API 密钥
-        api-key: ${DEEPSEEK_API_KEY:sk-abdf3e8d58fc4a089495260e5b397844}
+        api-key: ${DEEPSEEK_API_KEY}
         # 模型名称
         model: ${DEEPSEEK_MODEL:deepseek-chat}
         # 请求超时时间
@@ -300,7 +300,7 @@ ai:
         # API 路径
         path: ${BAILIAN_CHAT_PATH:/chat/completions}
         # API 密钥
-        api-key: ${BAILIAN_API_KEY:${DASHSCOPE_API_KEY:sk-0e1be25b97ed4d7793f199fbbc225b40}}
+        api-key: ${BAILIAN_API_KEY:${DASHSCOPE_API_KEY}}
         # 模型名称
         model: ${BAILIAN_MODEL:qwen-plus}
         # 请求超时时间
