@@ -23,3 +23,20 @@ ai:
         host: ${AI_GATEWAY_RAG_MILVUS_HOST:milvus}
         port: ${AI_GATEWAY_RAG_MILVUS_PORT:19530}
         database: default
+
+# Docker 环境限流配置（可根据需要调整）
+resilience4j:
+  ratelimiter:
+    instances:
+      api:
+        limitForPeriod: 100
+        limitRefreshPeriod: 1s
+        timeoutDuration: 500ms
+      chat:
+        limitForPeriod: 20
+        limitRefreshPeriod: 1s
+        timeoutDuration: 200ms
+      upload:
+        limitForPeriod: 10
+        limitRefreshPeriod: 1m
+        timeoutDuration: 1s

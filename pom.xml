@@ -151,6 +151,18 @@
             <artifactId>reactor-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Resilience4j 限流 -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot3</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-reactor</artifactId>
+            <version>2.2.0</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -161,4 +173,5 @@
             </plugin>
         </plugins>
     </build>
+
 </project>

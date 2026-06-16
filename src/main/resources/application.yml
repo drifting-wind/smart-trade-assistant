@@ -92,6 +92,41 @@ springdoc:
     path: /swagger-ui.html
 
 # ============================================
+# Resilience4j 限流配置
+# ============================================
+resilience4j:
+  ratelimiter:
+    instances:
+      # API 全局限流：每秒 100 次请求
+      api:
+        # 每个周期允许的请求数
+        limitForPeriod: 100
+        # 周期时长
+        limitRefreshPeriod: 1s
+        # 超时等待时间（超过限流时等待 500ms）
+        timeoutDuration: 500ms
+        # 是否启用限流
+        registerHealthIndicator: true
+        # 事件消费者缓冲区大小
+        eventConsumerBufferSize: 100
+
+      # 问答接口限流：每秒 20 次请求（防止恶意刷接口）
+      chat:
+        limitForPeriod: 20
+        limitRefreshPeriod: 1s
+        timeoutDuration: 200ms
+        registerHealthIndicator: true
+        eventConsumerBufferSize: 50
+
+      # 文件上传限流：每分钟 10 次请求（防止资源耗尽）
+      upload:
+        limitForPeriod: 10
+        limitRefreshPeriod: 1m
+        timeoutDuration: 1s
+        registerHealthIndicator: true
+        eventConsumerBufferSize: 20
+
+# ============================================
 # AI 网关配置
 # ============================================
 ai:

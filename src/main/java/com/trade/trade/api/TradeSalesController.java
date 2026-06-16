@@ -5,6 +5,7 @@ import com.trade.trade.dto.OpportunityAnalysisResponse;
 import com.trade.trade.dto.SalesPlanResponse;
 import com.trade.trade.dto.TradeInquiryRequest;
 import com.trade.trade.service.TradeSalesService;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -110,6 +111,7 @@ public class TradeSalesController {
      * - JSON 解析失败时返回默认值（60 分、中等风险、需跟进），保证服务不中断
      */
     @PostMapping("/opportunities/analyze")
+    @RateLimiter(name = "api") // 限流：每秒 100 次请求
     @Operation(
             summary = "商机分析",
             description = "AI 评估外贸询盘质量，返回打分、风险等级、购买意图、推荐产品等结构化结果"
@@ -196,6 +198,7 @@ public class TradeSalesController {
      * - JSON 解析失败时返回默认销售模板，保证服务不中断
      */
     @PostMapping("/opportunities/sales-plan")
+    @RateLimiter(name = "api") // 限流：每秒 100 次请求
     @Operation(
             summary = "销售推进计划",
             description = "AI 将询盘转化为可执行的销售推进计划，包含任务拆解、谈判要点、单证准备"
@@ -266,6 +269,7 @@ public class TradeSalesController {
      * - 邮件生成要求：语气专业、明确下一步、主动索要缺失参数、不虚构最终价格
      */
     @PostMapping(value = "/opportunities/reply/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RateLimiter(name = "api") // 限流：每秒 100 次请求
     @Operation(
             summary = "流式生成客户回复邮件",
             description = "通过 SSE 实时推送 AI 生成的英文邮件正文，适合前端逐字展示"

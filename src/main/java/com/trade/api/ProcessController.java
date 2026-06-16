@@ -4,6 +4,7 @@ import com.trade.dto.AiStreamEvent;
 import com.trade.dto.ProcessPlanResponse;
 import com.trade.dto.ProcessRequest;
 import com.trade.service.ProcessAssistantService;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -96,6 +97,7 @@ public class ProcessController {
      * - WebFlux 的响应式链：Controller 直接将 Mono 返回给框架，框架异步序列化
      */
     @PostMapping("/assistant")
+    @RateLimiter(name = "api") // 限流：每秒 100 次请求
     @Operation(
             summary = "同步流程规划",
             description = "提交业务目标，AI 自动拆解为可执行的任务计划（含任务列表、负责人、风险点、监控指标）"
@@ -191,6 +193,7 @@ public class ProcessController {
      * - onErrorResume：流式降级，主模型失败切换 fallback，仍无法恢复则发送 error 事件
      */
     @PostMapping(value = "/assistant/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RateLimiter(name = "api") // 限流：每秒 100 次请求
     @Operation(
             summary = "流式流程规划（SSE）",
             description = "提交业务目标，通过 SSE 实时推送 AI 生成的流程计划内容"

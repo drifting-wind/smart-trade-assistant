@@ -11,6 +11,7 @@ import com.trade.rag.dto.SearchResultDto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trade.rag.dto.BatchUploadResponse;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -98,6 +99,7 @@ public class RagController {
      * }
      */
     @PostMapping(value = "/documents/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RateLimiter(name = "upload") // 限流：每分钟 10 次请求
     @Operation(
             summary = "上传单个文件",
             description = "上传 PDF/DOCX/TXT/Markdown 文件，自动解析、分块、Embedding 并写入知识库"
@@ -198,6 +200,7 @@ public class RagController {
      * }
      */
     @PostMapping(value = "/documents/upload/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RateLimiter(name = "upload") // 限流：每分钟 10 次请求
     @Operation(
             summary = "批量上传文件",
             description = "批量上传多个文件（最多 10 个），自动解析、分块、Embedding 并写入知识库"
@@ -278,6 +281,7 @@ public class RagController {
      * }
      */
     @PostMapping("/documents")
+    @RateLimiter(name = "api") // 限流：每秒 100 次请求
     @Operation(
             summary = "摄入纯文本",
             description = "将纯文本内容摄入知识库，自动分块、Embedding 并写入向量数据库"
@@ -326,6 +330,7 @@ public class RagController {
      * }
      */
     @GetMapping("/search")
+    @RateLimiter(name = "api") // 限流：每秒 100 次请求
     @Operation(
             summary = "语义搜索",
             description = "在知识库中搜索与查询相关的文档块，返回 Top-K 匹配结果（不调用 AI）"
@@ -389,6 +394,7 @@ public class RagController {
      * 注意：RAG 流程由 RagOrchestrationService 自动处理，无需设置 useKnowledgeBase。
      */
     @PostMapping("/chat")
+    @RateLimiter(name = "chat") // 限流：每秒 20 次请求
     @Operation(
             summary = "RAG 问答（同步）",
             description = "基于知识库的检索增强问答，自动检索相关文档并生成回答"
@@ -442,6 +448,7 @@ public class RagController {
      * 3. done 事件 —— 完成信号
      */
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RateLimiter(name = "chat") // 限流：每秒 20 次请求
     @Operation(
             summary = "RAG 问答（流式）",
             description = "基于知识库的检索增强问答，通过 SSE 实时推送 AI 生成的每个 token"
@@ -495,6 +502,7 @@ public class RagController {
      * 注意：仅删除向量数据，不删除原始文件。
      */
     @DeleteMapping("/documents/{documentId}")
+    @RateLimiter(name = "api") // 限流：每秒 100 次请求
     @Operation(
             summary = "删除文档",
             description = "从知识库中删除指定文档的所有向量数据（仅删除向量，不删除原始文件）"

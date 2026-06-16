@@ -5,6 +5,7 @@ import com.trade.dto.ChatRequest;
 import com.trade.dto.ChatResponse;
 import com.trade.rag.RagOrchestrationService;
 import com.trade.service.ChatOrchestrationService;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -62,6 +63,7 @@ public class ChatController {
      * 同步问答 —— 根据 useKnowledgeBase 自动选择普通对话或 RAG 对话。
      */
     @PostMapping("/completions")
+    @RateLimiter(name = "chat") // 限流：每秒 20 次请求
     @Operation(
             summary = "同步问答",
             description = "提交问题，等待 AI 完整回答后一次性返回。根据 useKnowledgeBase 自动选择普通对话或 RAG 对话。"
@@ -115,6 +117,7 @@ public class ChatController {
      * 流式问答 —— SSE 推送，根据 useKnowledgeBase 自动选择。
      */
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RateLimiter(name = "chat") // 限流：每秒 20 次请求
     @Operation(
             summary = "流式问答（SSE）",
             description = "提交问题，通过 SSE (Server-Sent Events) 实时推送 AI 生成的每个 token。适合前端实时展示。"
