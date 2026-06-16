@@ -1,6 +1,99 @@
-version: '3.8'
-
 services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: smart-trade-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd-data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: smart-trade-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - minio-data:/minio_data
+    command: minio server /minio_data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus:
+    image: milvusdb/milvus:v2.4.12
+    container_name: smart-trade-milvus
+    # 【关键修复】显式指定配置文件路径，覆盖容器内默认配置
+    command: ["milvus", "run", "standalone", "-c", "/milvus/configs/milvus.yaml"]
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - milvus-data:/var/lib/milvus
+      # 确保自定义配置文件正确挂载
+      - ./configs/milvus.yaml:/milvus/configs/milvus.yaml
+    depends_on:
+      etcd:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: smart-trade-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: smart-trade-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - app-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
   app:
     build:
       context: .
@@ -10,13 +103,20 @@ services:
       - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - TZ=Asia/Shanghai
-      - SPRING_DATA_REDIS_HOST=redis
-      - SPRING_DATA_REDIS_PORT=6379
+      - SERVER_PORT=8080
+      # Milvus 连接配置（若修改了宿主机映射端口，此处需同步更新）
       - AI_GATEWAY_RAG_MILVUS_HOST=milvus
       - AI_GATEWAY_RAG_MILVUS_PORT=19530
-      - LOGGING_LEVEL_ROOT=INFO
-      - LOGGING_LEVEL_COM_TRADE=DEBUG
+      - AI_GATEWAY_RAG_MILVUS_DATABASE=default
+      # Redis 连接配置
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      # Ollama 连接配置
+      - AI_GATEWAY_RAG_OLLAMA_BASE_URL=http://ollama:11434
+      - AI_GATEWAY_RAG_OLLAMA_CHAT_MODEL=qwen2.5:7b
+      - AI_GATEWAY_RAG_OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+      # JVM 优化参数
+      - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC
     volumes:
       - app-data:/app/data
       - app-logs:/app/logs
@@ -30,120 +130,15 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  redis:
-    image: redis:7-alpine
-    container_name: smart-trade-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - app-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  milvus:
-    image: milvusdb/milvus:v2.4.12
-    container_name: smart-trade-milvus
-    command: ["milvus", "run", "standalone"]
-    ports:
-      - "19530:19530"
-      - "9091:9091"
-    # 挂载自定义配置文件
-    volumes:
-      - milvus-data:/var/lib/milvus
-      - ./configs/milvus.yaml:/milvus/configs/milvus.yaml
-    depends_on:
-      etcd:
-        condition: service_started
-      minio:
-        condition: service_healthy
-    networks:
-      - app-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 300s
-
-  etcd:
-    image: quay.io/coreos/etcd:v3.5.5
-    container_name: smart-trade-etcd
-    environment:
-      - ETCD_AUTO_COMPACTION_MODE=revision
-      - ETCD_AUTO_COMPACTION_RETENTION=1000
-      - ETCD_QUOTA_BACKEND_BYTES=4294967296
-      - ETCD_SNAPSHOT_COUNT=50000
-      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
-      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
-    volumes:
-      - etcd-data:/etcd
-    networks:
-      - app-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health", "--endpoints", "http://localhost:2379"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  minio:
-    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
-    container_name: smart-trade-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-    volumes:
-      - minio-data:/data
-    networks:
-      - app-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: smart-trade-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    networks:
-      - app-network
-    restart: unless-stopped
 
 volumes:
-  app-data:
-    driver: local
-  app-logs:
-    driver: local
-  redis-data:
-    driver: local
-  milvus-data:
-    driver: local
   etcd-data:
-    driver: local
   minio-data:
-    driver: local
+  milvus-data:
+  redis-data:
   ollama-data:
-    driver: local
+  app-data:
+  app-logs:
 
 networks:
   app-network:
