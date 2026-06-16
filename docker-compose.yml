@@ -1,9 +1,6 @@
 version: '3.8'
 
 services:
-  # ============================================
-  # 智能外贸助手应用
-  # ============================================
   app:
     build:
       context: .
@@ -14,13 +11,10 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - TZ=Asia/Shanghai
-      # Redis 配置
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      # Milvus 配置
       - AI_GATEWAY_RAG_MILVUS_HOST=milvus
       - AI_GATEWAY_RAG_MILVUS_PORT=19530
-      # 日志级别
       - LOGGING_LEVEL_ROOT=INFO
       - LOGGING_LEVEL_COM_TRADE=DEBUG
     volumes:
@@ -43,9 +37,6 @@ services:
       retries: 3
       start_period: 60s
 
-  # ============================================
-  # Redis - 缓存服务
-  # ============================================
   redis:
     image: redis:7-alpine
     container_name: smart-trade-redis
@@ -62,20 +53,17 @@ services:
       timeout: 5s
       retries: 3
 
-  # ============================================
-  # Milvus - 向量数据库
-  # ============================================
   milvus:
     image: milvusdb/milvus:v2.4.12
     container_name: smart-trade-milvus
     command: ["milvus", "run", "standalone"]
     ports:
-      - "19530:19530" # gRPC
-      - "9091:9091"   # HTTP/REST
-    environment:
-      MINIO_ADDRESS: minio:9000
+      - "19530:19530"
+      - "9091:9091"
+    # 挂载自定义配置文件
     volumes:
       - milvus-data:/var/lib/milvus
+      - ./configs/milvus.yaml:/milvus/configs/milvus.yaml
     depends_on:
       etcd:
         condition: service_started
@@ -91,9 +79,6 @@ services:
       retries: 10
       start_period: 300s
 
-  # ============================================
-  # etcd - Milvus 元数据存储 (已修复配置)
-  # ============================================
   etcd:
     image: quay.io/coreos/etcd:v3.5.5
     container_name: smart-trade-etcd
@@ -102,27 +87,19 @@ services:
       - ETCD_AUTO_COMPACTION_RETENTION=1000
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
-      # 修复：恢复为 0.0.0.0 以满足 Etcd 的绑定要求
       - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
       - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
     volumes:
       - etcd-data:/etcd
     networks:
-      app-network:
-        # 添加网络别名，确保主机名解析无误
-        aliases:
-          - etcd-host
+      - app-network
     restart: unless-stopped
-    # 简化健康检查命令，避免因集群状态导致的误报
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health", "--endpoints", "http://localhost:2379"]
       interval: 10s
       timeout: 5s
       retries: 10
 
-  # ============================================
-  # MinIO - Milvus 对象存储
-  # ============================================
   minio:
     image: minio/minio:RELEASE.2023-03-20T20-16-18Z
     container_name: smart-trade-minio
@@ -141,9 +118,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # ============================================
-  # Ollama - 本地 Embedding 模型
-  # ============================================
   ollama:
     image: ollama/ollama:latest
     container_name: smart-trade-ollama
@@ -155,9 +129,6 @@ services:
       - app-network
     restart: unless-stopped
 
-# ============================================
-# 数据卷
-# ============================================
 volumes:
   app-data:
     driver: local
@@ -174,9 +145,6 @@ volumes:
   ollama-data:
     driver: local
 
-# ============================================
-# 网络
-# ============================================
 networks:
   app-network:
     driver: bridge
