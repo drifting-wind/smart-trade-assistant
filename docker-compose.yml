@@ -70,13 +70,15 @@ services:
     container_name: smart-trade-milvus
     command: ["milvus", "run", "standalone"]
     ports:
-      - "19530:19530"  # gRPC
-      - "9091:9091"    # HTTP/REST
+      - "19530:19530" # gRPC
+      - "9091:9091"   # HTTP/REST (已开启，方便调试)
     environment:
       MINIO_ADDRESS: minio:9000
     volumes:
       - milvus-data:/var/lib/milvus
     depends_on:
+      etcd:
+        condition: service_healthy
       minio:
         condition: service_healthy
     networks:
@@ -88,6 +90,31 @@ services:
       timeout: 10s
       retries: 10
       start_period: 300s
+
+  # ============================================
+  # etcd - Milvus 元数据存储 (修复重点)
+  # ============================================
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: smart-trade-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+      # 修复配置：将 LISTEN 地址从 0.0.0.0 改为 etcd (服务名)
+      - ETCD_LISTEN_CLIENT_URLS=http://etcd:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+    volumes:
+      - etcd-data:/etcd
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================
   # MinIO - Milvus 对象存储
@@ -123,13 +150,6 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-    # 如果有 GPU 可以取消注释下面两行加速
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities: [gpu]
 
 # ============================================
 # 数据卷
@@ -142,6 +162,8 @@ volumes:
   redis-data:
     driver: local
   milvus-data:
+    driver: local
+  etcd-data:
     driver: local
   minio-data:
     driver: local
