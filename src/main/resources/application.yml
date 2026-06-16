@@ -155,8 +155,8 @@ ai:
       vector-store-type: milvus
       # 集合名称
       collection-name: trade_knowledge
-      # 向量维度（需与 Embedding 模型输出维度一致）
-      dimension: 1024
+      # 向量维度（需与 Embedding 模型输出维度一致，Ollama all-minilm-l6-v2 输出 384 维）
+      dimension: 384
       # 最大返回结果数（⭐ 优化：从10减少到5，减少冗余上下文）
       max-results: 5
       # 相似度阈值（⭐ 优化：从0.5提高到0.7，只保留高相似度结果）
@@ -186,23 +186,23 @@ ai:
         # 月度预算：100 元
         monthly-budget: 100.0
 
-      # 降级 Embedding 配置 —— 主模型不可用时自动切换
+      # 降级 Embedding 配置 —— Ollama all-minilm-l6-v2（免费离线，约200MB内存）
       fallback-embedding:
-        # 降级模型：本地 Mock 服务（用于测试或主模型故障时）
-        model: mock-embedding
-        # Embedding API 基础 URL（本地 Mock 服务）
-        base-url: http://localhost:8082
+        # 降级模型：Ollama all-minilm-l6-v2（384维，轻量稳定）
+        model: all-minilm-l6-v2
+        # Ollama API 地址（Docker 容器名访问）
+        base-url: ${OLLAMA_BASE_URL:http://ollama:11434}
         # Embedding API 路径
         path: /v1/embeddings
-        # API 密钥（Mock 服务不需要真实密钥）
-        api-key: mock-key
+        # API 密钥（Ollama 不需要真实密钥）
+        api-key: ollama
         # 编码格式：float
         encoding-format: float
-        # 请求超时时间：5 秒（Mock 服务响应快）
-        timeout: 5s
-        # 重试次数：1 次
-        max-retries: 1
-        # 降级模型单价：0 元（Mock 服务免费）
+        # 请求超时时间：30 秒
+        timeout: 30s
+        # 重试次数：2 次
+        max-retries: 2
+        # 降级模型单价：0 元（Ollama 免费）
         price-per-million-tokens: 0.0
 
       # 健康检查配置 —— 定期检查 Embedding 服务可用性

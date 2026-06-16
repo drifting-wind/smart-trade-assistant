@@ -31,6 +31,8 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
+      ollama:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -131,6 +133,27 @@ services:
       timeout: 10s
       retries: 3
 
+  # ============================================
+  # Ollama - 本地 Embedding 模型
+  # ============================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: smart-trade-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - app-network
+    restart: unless-stopped
+    # 如果有 GPU 可以取消注释下面两行加速
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
+
 # ============================================
 # 数据卷
 # ============================================
@@ -146,6 +169,8 @@ volumes:
   etcd-data:
     driver: local
   minio-data:
+    driver: local
+  ollama-data:
     driver: local
 
 # ============================================
