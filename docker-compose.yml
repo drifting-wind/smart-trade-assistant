@@ -90,7 +90,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      start_period: 180s
 
   # ============================================
   # etcd - Milvus 元数据存储
