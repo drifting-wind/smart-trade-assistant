@@ -66,7 +66,7 @@ services:
   # Milvus - 向量数据库
   # ============================================
   milvus:
-    image: milvusdb/milvus:v2.5.4
+    image: milvusdb/milvus:v2.4.12
     container_name: smart-trade-milvus
     command: ["milvus", "run", "standalone"]
     ports:
@@ -103,6 +103,8 @@ services:
       - ETCD_AUTO_COMPACTION_RETENTION=1000
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
     volumes:
       - etcd-data:/etcd
     networks:
