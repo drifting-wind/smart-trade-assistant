@@ -160,9 +160,9 @@ ai:
       # 最大返回结果数（⭐ 优化：从10减少到5，减少冗余上下文）
       max-results: 5
       # 相似度阈值（⭐ 优化：从0.5提高到0.7，只保留高相似度结果）
-      similarity-threshold: 0.7
+      similarity-threshold: 0.5
       # 文本分块配置
-      chunk-size: 300      # 每块字符数      若是：结构化文档 200 ~ 400 汉字（别超过 400）
+      chunk-size: 200      # 每块字符数      若是：结构化文档 200 ~ 400 汉字（别超过 400）
       chunk-overlap: 35    # 块间重叠字符数   仅用来防语义截断，不要过大
 
       # Embedding 配置 —— 主模型 + 降级模型
@@ -183,8 +183,8 @@ ai:
         max-retries: 2
         # 单价：0.02 元/百万 token（DashScope text-embedding-v3 官方价格）
         price-per-million-tokens: 0.02
-        # 月度预算：1000 元
-        monthly-budget: 1000.0
+        # 月度预算：100 元
+        monthly-budget: 100.0
 
       # 降级 Embedding 配置 —— 主模型不可用时自动切换
       fallback-embedding:
@@ -300,7 +300,7 @@ ai:
         # API 路径
         path: ${BAILIAN_CHAT_PATH:/chat/completions}
         # API 密钥
-        api-key: ${BAILIAN_API_KEY:${DASHSCOPE_API_KEY}}
+        api-key: ${BAILIAN_API_KEY}
         # 模型名称
         model: ${BAILIAN_MODEL:qwen-plus}
         # 请求超时时间
