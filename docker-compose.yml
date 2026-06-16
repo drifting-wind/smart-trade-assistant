@@ -68,6 +68,7 @@ services:
   milvus:
     image: milvusdb/milvus:v2.4.4
     container_name: smart-trade-milvus
+    command: ["milvus", "run", "standalone"]
     ports:
       - "19530:19530"  # gRPC
       - "9091:9091"    # HTTP/REST
