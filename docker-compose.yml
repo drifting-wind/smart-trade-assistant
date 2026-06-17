@@ -39,7 +39,7 @@ services:
     image: milvusdb/milvus:v2.4.12
     container_name: smart-trade-milvus
     # 【关键修复】显式指定配置文件路径，覆盖容器内默认配置
-    command: ["milvus", "run", "standalone", "-c", "/milvus/configs/milvus.yaml"]
+    command: ["milvus", "run", "standalone", "--config", "/milvus/configs/milvus.yaml"]
     ports:
       - "19530:19530"
       - "9091:9091"
