@@ -395,7 +395,8 @@ public class EmbeddingService {
      * {
      *   "model": "text-embedding-v3",
      *   "input": ["文本1", "文本2"],
-     *   "encoding_format": "float"
+     *   "encoding_format": "float",
+     *   "output_dimension": 1536  // ⭐ 关键：显式指定输出维度（仅 text-embedding-v3 支持）
      * }
      */
     private Map<String, Object> payload(List<String> texts, AiGatewayProperties.Rag.Embedding config) {
@@ -403,6 +404,10 @@ public class EmbeddingService {
         body.put("model", config.getModel());
         body.put("input", texts);
         body.put("encoding_format", config.getEncodingFormat());
+        // ⭐ 关键：显式指定输出维度（text-embedding-v3 默认 1024，需手动指定 1536）
+        if (config.getOutputDimension() != null && config.getOutputDimension() > 0) {
+            body.put("output_dimension", config.getOutputDimension());
+        }
         return body;
     }
 

@@ -155,8 +155,8 @@ ai:
       vector-store-type: milvus
       # 集合名称
       collection-name: trade_knowledge
-      # 向量维度（需与 Embedding 模型输出维度一致，Ollama all-minilm-l6-v2 输出 384 维）
-      dimension: 384
+      # 向量维度（需与 Embedding 模型输出维度一致，DeepSeek text-embedding-3-small 输出 1536 维）
+      dimension: 1536
       # 最大返回结果数（⭐ 优化：从10减少到5，减少冗余上下文）
       max-results: 5
       # 相似度阈值（⭐ 优化：从0.5提高到0.7，只保留高相似度结果）
@@ -167,8 +167,8 @@ ai:
 
       # Embedding 配置 —— 主模型 + 降级模型
       embedding:
-        # 主模型：阿里巴巴 DashScope text-embedding-v3（生产级）
-        model: text-embedding-v3
+        # 主模型：阿里巴巴 DashScope text-embedding-v2（⭐ 1536 维，无需额外参数）
+        model: text-embedding-v2
         # Embedding API 基础 URL（DashScope 兼容 OpenAI /v1/embeddings）
         base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
         # Embedding API 路径
@@ -181,29 +181,29 @@ ai:
         timeout: 30s
         # 重试次数：2 次
         max-retries: 2
-        # 单价：0.02 元/百万 token（DashScope text-embedding-v3 官方价格）
+        # 单价：0.02 元/百万 token（DashScope text-embedding-v2 官方价格）
         price-per-million-tokens: 0.02
         # 月度预算：100 元
         monthly-budget: 100.0
 
-      # 降级 Embedding 配置 —— Ollama all-minilm-l6-v2（免费离线，约200MB内存）
+      # 降级 Embedding 配置 —— DashScope text-embedding-v2（同一供应商，兼容性更好）
       fallback-embedding:
-        # 降级模型：Ollama all-minilm-l6-v2（384维，轻量稳定）
-        model: all-minilm-l6-v2
-        # Ollama API 地址（Docker 容器名访问）
-        base-url: ${OLLAMA_BASE_URL:http://ollama:11434}
+        # 降级模型：DashScope text-embedding-v2（1536维，价格更便宜）
+        model: text-embedding-v2
+        # DashScope API 地址（与主模型相同）
+        base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
         # Embedding API 路径
-        path: /v1/embeddings
-        # API 密钥（Ollama 不需要真实密钥）
-        api-key: ollama
+        path: /embeddings
+        # API 密钥（与主模型相同）
+        api-key: ${DASHSCOPE_API_KEY}
         # 编码格式：float
         encoding-format: float
         # 请求超时时间：30 秒
         timeout: 30s
         # 重试次数：2 次
         max-retries: 2
-        # 降级模型单价：0 元（Ollama 免费）
-        price-per-million-tokens: 0.0
+        # 降级模型单价：0.01 元/百万 token（DashScope text-embedding-v2 官方价格）
+        price-per-million-tokens: 10.0
 
       # 健康检查配置 —— 定期检查 Embedding 服务可用性
       health-check:

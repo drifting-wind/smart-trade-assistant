@@ -77,23 +77,6 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: smart-trade-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    networks:
-      - app-network
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
   app:
     build:
       context: .
@@ -111,10 +94,8 @@ services:
       # Redis 连接配置
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      # Ollama 连接配置
-      - AI_GATEWAY_RAG_OLLAMA_BASE_URL=http://ollama:11434
-      - AI_GATEWAY_RAG_OLLAMA_CHAT_MODEL=qwen2.5:7b
-      - AI_GATEWAY_RAG_OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+      # AI API 密钥（从环境变量读取，若未设置请在 .env 文件中配置）
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-your-dashscope-api-key}
       # JVM 优化参数
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC
     volumes:
@@ -125,8 +106,6 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
-      ollama:
-        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -136,7 +115,6 @@ volumes:
   minio-data:
   milvus-data:
   redis-data:
-  ollama-data:
   app-data:
   app-logs:
 
