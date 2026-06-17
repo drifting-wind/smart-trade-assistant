@@ -46,7 +46,7 @@ services:
     volumes:
       - milvus-data:/var/lib/milvus
       # 确保自定义配置文件正确挂载
-      - ./configs/milvus.yaml:/milvus/configs/milvus.yaml
+#      - ./configs/milvus.yaml:/milvus/configs/milvus.yaml
     depends_on:
       etcd:
         condition: service_started
