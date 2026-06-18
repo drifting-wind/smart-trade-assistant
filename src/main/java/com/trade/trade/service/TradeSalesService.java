@@ -168,13 +168,15 @@ public class TradeSalesService {
     ) {
         try {
             JsonNode root = objectMapper.readTree(extractJson(response.content()));
+            // ⭐ 将 JSON 转换为表格格式化 HTML（类似推进任务的展示效果）
+            String formattedSummary = formatAnalysisSummaryTable(root, request, response.provider(), route);
             return new OpportunityAnalysisResponse(
                     prompt.requestId(),
                     opportunityId(request),
                     clamp(root.path("leadScore").asInt(60), 0, 100),
                     text(root, "riskLevel", "MEDIUM"),
                     text(root, "buyingIntent", "NEEDS_FOLLOW_UP"),
-                    text(root, "summary", response.content()),
+                    formattedSummary,
                     strings(root.path("recommendedProducts")),
                     strings(root.path("missingInformation")),
                     strings(root.path("nextActions")),
@@ -184,13 +186,15 @@ public class TradeSalesService {
                     Instant.now()
             );
         } catch (Exception ignored) {
+            // ⭐ 异常时也返回格式化表格文本
+            String fallbackSummary = formatFallbackSummaryTable(request, response.provider(), route);
             return new OpportunityAnalysisResponse(
                     prompt.requestId(),
                     opportunityId(request),
                     60,
                     "MEDIUM",
                     "NEEDS_FOLLOW_UP",
-                    response.content(),
+                    fallbackSummary,
                     List.of(request.productName()),
                     List.of("确认目标价格币种", "确认目的港和贸易条款", "确认是否需要样品"),
                     List.of("发送规格确认邮件", "准备阶梯报价", "核查付款与交期风险"),
@@ -200,6 +204,132 @@ public class TradeSalesService {
                     Instant.now()
             );
         }
+    }
+
+    /**
+     * 将 AI 输出的 JSON 格式化为大气卡片式布局
+     * 顶部：核心指标卡片
+     * 中部：详细信息（标签 + 值，两列布局，确保完整显示）
+     * 底部：评估摘要
+     */
+    private String formatAnalysisSummaryTable(JsonNode root, TradeInquiryRequest request, ModelProvider model, RouteDecision route) {
+        int leadScore = root.path("leadScore").asInt(60);
+        String riskLevel = root.path("riskLevel").asText("MEDIUM");
+        String buyingIntent = root.path("buyingIntent").asText("NEEDS_FOLLOW_UP");
+        String recommendedProducts = buildTagsList(root.path("recommendedProducts"), request.productName(), "product");
+        String missingInformation = buildTagsList(root.path("missingInformation"), "确认目标价格币种、确认目的港和贸易条款、确认是否需要样品", "warn");
+        String nextActions = buildTagsList(root.path("nextActions"), "发送规格确认邮件、准备阶梯报价、核查付款与交期风险", "action");
+        String pricingAdvice = root.path("pricingAdvice").asText("结合目标价、MOQ、交期与运费重新核算报价");
+        String aiSummary = root.path("summary").asText("AI 评估摘要不可用");
+        String routeInfo = route != null && route.selectedModel() != null ? route.selectedModel().name() : "-";
+        String createdAt = Instant.now().toString().replace("T", " ").substring(0, 19);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div class='summary-card'>");
+        // 顶部：核心指标
+//        sb.append("<div class='summary-header'>");
+//        sb.append("<div class='metric'><span class='metric-label'>商机评分</span><span class='metric-value score'>" + leadScore + "</span></div>");
+//        sb.append("<div class='metric'><span class='metric-label'>风险等级</span><span class='metric-value risk-" + riskLevel.toLowerCase() + "'>" + riskLevel + "</span></div>");
+//        sb.append("<div class='metric'><span class='metric-label'>购买意图</span><span class='metric-value intent'>" + buyingIntent + "</span></div>");
+//        sb.append("</div>");
+        // 中部：详细信息
+        sb.append("<div class='summary-body'>");
+        sb.append("<div class='info-row'><span class='info-label'>推荐产品</span><span class='info-value'>" + recommendedProducts + "</span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>缺失信息</span><span class='info-value'>" + missingInformation + "</span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>下一步行动</span><span class='info-value'>" + nextActions + "</span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>报价建议</span><span class='info-value'>" + pricingAdvice + "</span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>AI 模型</span><span class='info-value'>" + model + " / " + routeInfo + "</span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>创建时间</span><span class='info-value'>" + createdAt + "</span></div>");
+        sb.append("</div>");
+        // 底部：AI 评估摘要
+        sb.append("<div class='summary-section'>");
+        sb.append("<div class='section-title'>📋 评估摘要</div>");
+        sb.append("<div class='section-content'>" + aiSummary + "</div>");
+        sb.append("</div>");
+        sb.append("</div>");
+        return sb.toString();
+    }
+
+    /**
+     * 异常时的默认格式化摘要
+     */
+    private String formatFallbackSummaryTable(TradeInquiryRequest request, ModelProvider model, RouteDecision route) {
+        String routeInfo = route != null && route.selectedModel() != null ? route.selectedModel().name() : "-";
+        String createdAt = Instant.now().toString().replace("T", " ").substring(0, 19);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div class='summary-card'>");
+        sb.append("<div class='summary-header'>");
+        sb.append("<div class='metric'><span class='metric-label'>商机评分</span><span class='metric-value score'>60</span></div>");
+        sb.append("<div class='metric'><span class='metric-label'>风险等级</span><span class='metric-value risk-medium'>MEDIUM</span></div>");
+        sb.append("<div class='metric'><span class='metric-label'>购买意图</span><span class='metric-value intent'>NEEDS_FOLLOW_UP</span></div>");
+        sb.append("</div>");
+        sb.append("<div class='summary-body'>");
+        sb.append("<div class='info-row'><span class='info-label'>推荐产品</span><span class='info-value'><span class='info-tag product'>" + request.productName() + "</span></span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>缺失信息</span><span class='info-value'><span class='info-tag warn'>确认目标价格币种</span><span class='info-tag warn'>确认目的港和贸易条款</span><span class='info-tag warn'>确认是否需要样品</span></span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>下一步行动</span><span class='info-value'><span class='info-tag action'>发送规格确认邮件</span><span class='info-tag action'>准备阶梯报价</span><span class='info-tag action'>核查付款与交期风险</span></span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>报价建议</span><span class='info-value'>模型输出非严格 JSON，已按外贸销售默认规则生成建议</span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>AI 模型</span><span class='info-value'>" + model + " / " + routeInfo + "</span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>创建时间</span><span class='info-value'>" + createdAt + "</span></div>");
+        sb.append("</div>");
+        sb.append("<div class='summary-section'>");
+        sb.append("<div class='section-title'>📋 评估摘要</div>");
+        sb.append("<div class='section-content'>模型输出异常，已使用默认评估结果</div>");
+        sb.append("</div>");
+        sb.append("</div>");
+        return sb.toString();
+    }
+
+    /**
+     * 构建逗号分隔的列表字符串
+     */
+    private String buildCommaList(JsonNode node, String defaultValue) {
+        if (node.isArray() && !node.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < node.size(); i++) {
+                if (i > 0) sb.append("、");
+                sb.append(node.get(i).asText());
+            }
+            return sb.toString();
+        }
+        return defaultValue;
+    }
+
+    /**
+     * 将 JSON 数组构建为 HTML 标签（span.info-tag）格式，展示更美观
+     */
+    private String buildTagsList(JsonNode node, String defaultValue, String tagClass) {
+        if (node.isArray() && !node.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < node.size(); i++) {
+                sb.append("<span class='info-tag ").append(tagClass).append("'>")
+                  .append(escapeHtml(node.get(i).asText()))
+                  .append("</span>");
+            }
+            return sb.toString();
+        }
+        return buildTagsFromString(defaultValue, tagClass);
+    }
+
+    /**
+     * 将顿号分隔的字符串转换为 HTML 标签格式
+     */
+    private String buildTagsFromString(String text, String tagClass) {
+        String[] items = text.split("[、,，]");
+        StringBuilder sb = new StringBuilder();
+        for (String item : items) {
+            String trimmed = item.trim();
+            if (!trimmed.isEmpty()) {
+                sb.append("<span class='info-tag ").append(tagClass).append("'>")
+                  .append(escapeHtml(trimmed))
+                  .append("</span>");
+            }
+        }
+        return sb.toString();
+    }
+
+    private String escapeHtml(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
     /**

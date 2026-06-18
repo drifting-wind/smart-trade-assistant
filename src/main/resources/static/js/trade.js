@@ -50,13 +50,18 @@ function initTradeEvents() {
     const button = event.currentTarget;
     setBusy(button, true);
     show("summary");
-    summary.textContent = "正在评估商机...";
+    summary.innerHTML = "<p>正在评估商机...</p>";
     try {
       const data = await postJson("/api/v1/trade/opportunities/analyze", payload());
       updateMetrics(data);
-      summary.textContent = JSON.stringify(data, null, 2);
+      // ⭐ 使用后端返回的 summary（HTML 表格样式），而非原始 JSON
+      if (data.summary) {
+        summary.innerHTML = data.summary;
+      } else {
+        summary.innerHTML = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+      }
     } catch (error) {
-      summary.textContent = `评估失败：${error.message}`;
+      summary.innerHTML = `<p style="color:red">评估失败：${error.message}</p>`;
     } finally {
       setBusy(button, false);
     }

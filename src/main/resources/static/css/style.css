@@ -365,3 +365,166 @@ pre {
   .board { grid-template-columns: 1fr; }
   .actions { grid-template-columns: 1fr; }
 }
+
+/* ⭐ 商机摘要卡片样式 - 大气美观 */
+.summary-card {
+  padding: 0;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  margin: 0;
+}
+
+/* 顶部核心指标区域 */
+.summary-header {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 22px 16px;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #6366f1 100%);
+  color: #fff;
+  gap: 12px;
+}
+
+.summary-header .metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  position: relative;
+}
+
+.summary-header .metric + .metric::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 15%;
+  height: 70%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.summary-header .metric-label {
+  font-size: 11px;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+.summary-header .metric-value {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.summary-header .metric-value.score {
+  color: #fbbf24;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+
+.summary-header .metric-value.risk-low { color: #6ee7b7; }
+.summary-header .metric-value.risk-medium { color: #fcd34d; }
+.summary-header .metric-value.risk-high { color: #fca5a5; }
+.summary-header .metric-value.intent { color: #c7d2fe; }
+
+/* 中部详细信息区域 */
+.summary-body {
+  padding: 6px 16px 10px;
+  background: #fff;
+}
+
+.summary-body .info-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 11px 0;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background 0.15s;
+}
+
+.summary-body .info-row:last-child { border-bottom: none; }
+
+.summary-body .info-label {
+  flex-shrink: 0;
+  width: 92px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  padding-top: 5px;
+  line-height: 1.4;
+  letter-spacing: 0.2px;
+}
+
+.summary-body .info-value {
+  flex: 1;
+  font-size: 13px;
+  color: #1f2937;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+/* 标签样式 - 用于列表项展示 */
+.summary-body .info-tag {
+  display: inline-block;
+  background: #f0f4ff;
+  color: #3730a3;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin: 2px 4px 2px 0;
+  border: 1px solid #e0e7ff;
+  line-height: 1.5;
+}
+
+.summary-body .info-tag.warn {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.summary-body .info-tag.action {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.summary-body .info-tag.product {
+  background: #faf5ff;
+  color: #6b21a8;
+  border-color: #e9d5ff;
+}
+
+/* 底部评估摘要区域 */
+.summary-section {
+  padding: 14px 16px 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e5e7eb;
+}
+
+.summary-section .section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.summary-section .section-content {
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.7;
+  padding: 12px 14px;
+  background: #fff;
+  border-radius: 8px;
+  border-left: 3px solid #6366f1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
