@@ -86,6 +86,9 @@ services:
     container_name: smart-trade-app
     ports:
       - "8080:8080"
+    # 用 env_file 一键加载
+    env_file:
+      - .env
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8080
@@ -96,9 +99,6 @@ services:
       # Redis 连接配置
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      # AI API 密钥（从环境变量读取，若未设置请在 .env 文件中配置）
-      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-your-dashscope-api-key}
-      # JVM 优化参数
       - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC
     volumes:
       - app-data:/app/data
