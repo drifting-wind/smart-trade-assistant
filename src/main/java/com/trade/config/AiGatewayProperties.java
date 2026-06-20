@@ -170,6 +170,15 @@ public class AiGatewayProperties {
         private boolean enabled = true;
         /** 允许的 Token 列表，为空时拒绝所有请求 */
         private List<String> tokens = new ArrayList<>();
+        /** 敏感词过滤配置 */
+        @Valid
+        private SensitiveWordConfig sensitiveWord = new SensitiveWordConfig();
+        /** Prompt 注入防护配置 */
+        @Valid
+        private PromptInjectionConfig promptInjection = new PromptInjectionConfig();
+        /** XSS 防护配置 */
+        @Valid
+        private XssConfig xss = new XssConfig();
 
         public boolean isEnabled() {
             return enabled;
@@ -190,6 +199,88 @@ public class AiGatewayProperties {
         /** 校验 Token 是否有效 —— 白名单匹配 */
         public boolean isValidToken(String token) {
             return token != null && tokens.contains(token);
+        }
+
+        public SensitiveWordConfig getSensitiveWord() {
+            return sensitiveWord;
+        }
+
+        public void setSensitiveWord(SensitiveWordConfig sensitiveWord) {
+            this.sensitiveWord = sensitiveWord;
+        }
+
+        public PromptInjectionConfig getPromptInjection() {
+            return promptInjection;
+        }
+
+        public void setPromptInjection(PromptInjectionConfig promptInjection) {
+            this.promptInjection = promptInjection;
+        }
+
+        public XssConfig getXss() {
+            return xss;
+        }
+
+        public void setXss(XssConfig xss) {
+            this.xss = xss;
+        }
+    }
+
+    /**
+     * 敏感词过滤配置
+     */
+    public static class SensitiveWordConfig {
+        /** 是否启用敏感词过滤 */
+        private boolean enabled = true;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+    }
+
+    /**
+     * Prompt 注入防护配置
+     */
+    public static class PromptInjectionConfig {
+        /** 是否启用 Prompt 注入防护 */
+        private boolean enabled = true;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+    }
+
+    /**
+     * XSS 防护配置
+     */
+    public static class XssConfig {
+        /** 是否启用 XSS 防护 */
+        private boolean enabled = true;
+        /** 是否拦截可疑请求（true 拦截，false 清洗） */
+        private boolean blockMode = false;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public boolean isBlockMode() {
+            return blockMode;
+        }
+
+        public void setBlockMode(boolean blockMode) {
+            this.blockMode = blockMode;
         }
     }
 

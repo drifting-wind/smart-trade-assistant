@@ -1,5 +1,6 @@
 package com.trade.exception;
 
+import com.trade.api.ChatController;
 import com.trade.dto.ApiErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import java.util.List;
  *
  * 异常类型与 HTTP 状态码映射：
  * - WebExchangeBindException → 400 Bad Request（参数校验失败）
+ * - ChatController.SecurityException → 400 Bad Request（安全检查失败）
  * - NoAvailableModelException → 503 Service Unavailable（没有可用 AI 模型）
  * - ModelInvocationException → 502 Bad Gateway（AI 模型调用失败）
  * - Exception（兜底） → 500 Internal Server Error
@@ -34,6 +36,13 @@ public class GlobalExceptionHandler {
                 .map(this::formatFieldError)
                 .toList();
         return ResponseEntity.badRequest().body(body("VALIDATION_ERROR", "请求参数不合法", details, exchange));
+    }
+
+    /** 安全检查失败 —— 400 Bad Request，返回具体的安全问题 */
+    @ExceptionHandler(ChatController.SecurityException.class)
+    public ResponseEntity<ApiErrorResponse> security(ChatController.SecurityException error, ServerWebExchange exchange) {
+        return ResponseEntity.badRequest()
+                .body(body("SECURITY_VIOLATION", error.getMessage(), List.of("请求包含不安全内容，已被拦截"), exchange));
     }
 
     /** 没有可用 AI 模型 —— 503 Service Unavailable，提示检查 API Key 配置 */

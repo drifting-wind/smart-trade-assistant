@@ -142,6 +142,20 @@ ai:
       enabled: ${AI_AUTH_ENABLED:true}
       # API 认证令牌（逗号分隔多个）
       tokens: ${AI_GATEWAY_TOKENS:dev-token}
+      # 敏感词过滤配置
+      sensitive-word:
+        # 是否启用敏感词过滤
+        enabled: true
+      # Prompt 注入防护配置
+      prompt-injection:
+        # 是否启用 Prompt 注入防护
+        enabled: true
+      # XSS 防护配置
+      xss:
+        # 是否启用 XSS 防护
+        enabled: true
+        # 是否拦截可疑请求（true 拦截，false 清洗）
+        block-mode: false
 
     # 模型路由配置
     routing:
