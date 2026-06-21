@@ -284,7 +284,7 @@ ai:
       deepseek:
         provider: DEEPSEEK
         # 是否启用
-        enabled: ${DEEPSEEK_ENABLED:false}
+        enabled: ${DEEPSEEK_ENABLED:true}
         # API 基础 URL
         base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
         # API 路径

@@ -5,6 +5,9 @@ import com.trade.enums.ModelProvider;
 import com.trade.enums.ScenarioType;
 import com.trade.exception.NoAvailableModelException;
 import com.trade.model.ModelRegistry;
+import com.trag.controller.DocumentSourceController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -32,6 +35,8 @@ import java.util.Set;
  */
 @Component
 public class ModelRouter {
+
+    private static final Logger log = LoggerFactory.getLogger(ModelRouter.class);
 
     // 推理类关键词 —— 命中这些词时优先选 DeepSeek（推理/代码能力强）
     private static final Set<String> REASONING_KEYWORDS = Set.of(
@@ -63,6 +68,9 @@ public class ModelRouter {
      * 5. fallbackFor() 确定降级模型
      */
     public RouteDecision route(ModelRouteRequest request) {
+        // 添加调试日志
+        System.out.println("【路由调试】收到请求 - preferredModel: " + request.preferredModel() + ", scenario: " + request.scenario());
+
         Map<ModelProvider, Double> scores = new EnumMap<>(ModelProvider.class);
         for (ModelProvider provider : ModelProvider.values()) {
             if (registry.available(provider).isPresent()) {
@@ -73,7 +81,13 @@ public class ModelRouter {
         if (scores.isEmpty()) {
             throw new NoAvailableModelException("没有可用模型，请检查 DEEPSEEK_API_KEY 或 BAILIAN_API_KEY 配置");
         }
+
+        System.out.println("【路由调试】可用模型打分: " + scores);
+
         ModelProvider selected = select(request, scores);
+
+        System.out.println("【路由调试】最终选择: " + selected + " (用户指定: " + request.preferredModel() + ")");
+
         ModelProvider fallback = fallbackFor(selected, scores);
         double score = scores.get(selected);
         return new RouteDecision(
@@ -92,9 +106,14 @@ public class ModelRouter {
      * 技术点：Stream API 的 max 操作 + Comparator，配合 Optional.orElse 提供兜底值。
      */
     private ModelProvider select(ModelRouteRequest request, Map<ModelProvider, Double> scores) {
+        System.out.println("【选择调试】preferredModel=" + request.preferredModel() + ", scores.containsKey=" + scores.containsKey(request.preferredModel()));
+
         if (request.preferredModel() != null && scores.containsKey(request.preferredModel())) {
+            System.out.println("【选择调试】✓ 使用用户指定模型: " + request.preferredModel());
             return request.preferredModel();
         }
+
+        System.out.println("【选择调试】✗ 使用智能路由算法选择最高分模型");
         return scores.entrySet().stream()
                 .max(Comparator.comparingDouble(Map.Entry::getValue))
                 .map(Map.Entry::getKey)
