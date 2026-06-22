@@ -544,4 +544,38 @@ public class DocumentIngestionService {
     public Mono<Void> deleteDocument(String documentId) {
         return vectorStoreClient.deleteByDocumentId(documentId);
     }
+
+    /**
+     * 获取文档信息 —— 根据文档 ID 查询文档元数据（标题、类型、创建时间等）
+     *
+     * @param documentId 文档 ID
+     * @return 文档信息
+     */
+    public Mono<DocumentUploadResponse> getDocumentInfo(String documentId) {
+        return Mono.fromCallable(() -> {
+            // 从 Milvus 查询文档元数据
+            String expr = "document_id == \"" + documentId + "\"";
+            var searchResults = vectorStoreClient.searchWithFilter(expr, 1);
+
+            if (searchResults.isEmpty()) {
+                throw new RuntimeException("文档不存在: " + documentId);
+            }
+
+            var firstResult = searchResults.get(0);
+            var metadata = firstResult.metadata();
+            String title = metadata.getOrDefault("title", "未命名文档").toString();
+            String contentType = metadata.getOrDefault("content_type", "unknown").toString();
+            String createdAt = metadata.getOrDefault("created_at", "").toString();
+
+            return new DocumentUploadResponse(
+                    documentId,
+                    title,
+                    0, // chunkCount 未知
+                    "success",
+                    null,
+                    metadata,
+                    Instant.parse(createdAt)
+            );
+        }).subscribeOn(Schedulers.boundedElastic());
+    }
 }

@@ -98,6 +98,26 @@ public class RagController {
      *   "createdAt": "2026-06-10T10:30:00Z"
      * }
      */
+    @GetMapping("/documents/{documentId}")
+    @Operation(
+            summary = "获取文档信息",
+            description = "根据文档 ID 获取文档详细信息（标题、类型、创建时间等）"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "成功返回文档信息",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = DocumentUploadResponse.class)
+                    )
+            ),
+            @ApiResponse(responseCode = "404", description = "文档不存在")
+    })
+    public Mono<DocumentUploadResponse> getDocument(@PathVariable String documentId) {
+        return ingestionService.getDocumentInfo(documentId);
+    }
+
     @PostMapping(value = "/documents/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RateLimiter(name = "upload") // 限流：每分钟 10 次请求
     @Operation(

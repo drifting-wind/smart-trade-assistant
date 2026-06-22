@@ -67,6 +67,9 @@ public record ChatResponse(
         /**
          * 引用信息列表 —— 回答中引用的所有来源，用于溯源定位。
          * 前端可展示引用列表，点击跳转到原文，确保回答"有据可查"。
+         *
+         * 注意：当 hasRelevantInfo = false 时（即回答"未找到相关信息"），
+         * 前端应隐藏此字段，不展示引用信息。
          */
         List<Citation> citations,
 
@@ -74,7 +77,19 @@ public record ChatResponse(
          * 响应创建时间 —— 服务器返回该响应的 UTC 时间戳。
          * 用于前端排序、日志审计和问题排查。
          */
-        Instant createdAt
+        Instant createdAt,
+
+        /**
+         * 是否有相关信息 —— 标识后端是否检索到了与问题相关的文档。
+         * - true：后端检索到了相关信息，并基于此生成回答，前端应展示引用来源
+         * - false：后端未检索到相关信息（回答"未找到相关信息"），前端应隐藏引用来源
+         *
+         * 前端展示逻辑：
+         * - hasRelevantInfo = true → 展示 citations 列表（去重后）
+         * - hasRelevantInfo = false → 隐藏 citations 列表
+         */
+        @Schema(description = "是否有相关信息", example = "true")
+        boolean hasRelevantInfo
 ) {
     /**
      * 创建"未找到答案"的响应 —— 当检索结果质量低于阈值时，直接返回此响应，不调用 LLM。
@@ -91,7 +106,8 @@ public record ChatResponse(
                 null,
                 null,
                 java.util.Collections.emptyList(),
-                Instant.now()
+                Instant.now(),
+                false  // ← 未找到相关信息，前端应隐藏引用
         );
     }
 }

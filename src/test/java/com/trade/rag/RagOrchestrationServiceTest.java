@@ -107,7 +107,8 @@ class RagOrchestrationServiceTest {
                 null,
                 null,
                 Collections.emptyList(),
-                java.time.Instant.now()
+                java.time.Instant.now(),
+                false
         );
 
         // Mock 行为：缓存命中
@@ -147,7 +148,8 @@ class RagOrchestrationServiceTest {
                 null,
                 null,
                 Collections.emptyList(),
-                java.time.Instant.now()
+                java.time.Instant.now(),
+                false
         );
 
         // Mock 行为：缓存未命中
@@ -343,7 +345,8 @@ class RagOrchestrationServiceTest {
                 null,
                 null,
                 Collections.emptyList(),
-                java.time.Instant.now()
+                java.time.Instant.now(),
+                false
         );
 
         // Mock 行为
@@ -389,7 +392,8 @@ class RagOrchestrationServiceTest {
                 null,
                 null,
                 Collections.emptyList(),
-                java.time.Instant.now()
+                java.time.Instant.now(),
+                false
         );
 
         // Mock 行为

@@ -302,7 +302,8 @@ public class ChatController {
                     response.route(),
                     response.usage(),
                     response.citations(),
-                    response.createdAt()
+                    response.createdAt(),
+                    response.hasRelevantInfo()
             );
         }
         return response;

@@ -230,7 +230,8 @@ public class ChatOrchestrationService {
                 routeMapper.toDto(route), // 路由决策信息返回给客户端，方便调试
                 modelResponse.usage(),    // Token 用量统计
                 java.util.Collections.emptyList(), // 引用信息（非 RAG 场景为空）
-                Instant.now()
+                Instant.now(),
+                false  // 非 RAG 场景，没有引用信息
         );
     }
 

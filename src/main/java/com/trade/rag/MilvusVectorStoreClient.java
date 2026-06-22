@@ -244,6 +244,61 @@ public class MilvusVectorStoreClient {
     }
 
     /**
+     * 按过滤条件搜索 —— 使用表达式过滤搜索结果（如 document_id == "xxx"）
+     *
+     * @param expr 过滤表达式
+     * @param topK 返回数量
+     * @return 匹配的文档列表
+     */
+    public List<SearchMatch> searchWithFilter(String expr, int topK) {
+        try {
+            log.debug("🔍 Milvus 过滤搜索: expr={}, topK={}", expr, topK);
+
+            // 构建搜索参数
+            SearchParam searchParam = SearchParam.newBuilder()
+                    .withCollectionName(collectionName)
+                    .withMetricType(MetricType.COSINE)
+                    .withTopK(topK)
+                    .withExpr(expr)
+                    .withOutFields(Arrays.asList("document_id", "chunk_index", "text", "metadata"))
+                    .withParams("{\"nprobe\": 16}")
+                    .build();
+
+            // 执行搜索
+            R<SearchResults> response = milvusClient.search(searchParam);
+            if (response.getStatus() != R.Status.Success.getCode()) {
+                log.error("❌ Milvus 过滤搜索失败: {}", response.getMessage());
+                return Collections.emptyList();
+            }
+
+            // 解析结果
+            SearchResults searchResults = response.getData();
+            List<SearchMatch> matches = new ArrayList<>();
+
+            if (searchResults != null && searchResults.getResults() != null) {
+                SearchResultsWrapper wrapper = new SearchResultsWrapper(searchResults.getResults());
+                List<RowRecord> rowRecords = wrapper.getRowRecords();
+
+                for (RowRecord record : rowRecords) {
+                    String documentId = getStringValue(record, "document_id");
+                    int chunkIndex = getIntValue(record, "chunk_index");
+                    String text = getStringValue(record, "text");
+                    Map<String, Object> metadata = getMetadataValue(record, "metadata");
+                    double score = 1.0; // 过滤搜索无分数
+
+                    matches.add(new SearchMatch(text, score, documentId, chunkIndex, metadata));
+                }
+            }
+
+            log.debug("✅ Milvus 过滤搜索完成: {} 条匹配", matches.size());
+            return matches;
+        } catch (Exception e) {
+            log.error("❌ Milvus 过滤搜索异常: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
      * 按文档 ID 删除向量 —— 删除指定文档的所有向量。
      */
     public Mono<Void> deleteByDocumentId(String documentId) {

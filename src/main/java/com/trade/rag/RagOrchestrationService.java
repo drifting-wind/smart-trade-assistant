@@ -179,11 +179,13 @@ public class RagOrchestrationService {
     /**
      * 使用检索结果完成同步问答。
      *
-     * 优化：构建引用信息列表，确保回答"有据可查"。
+     * 优化：
+     * 1. 构建引用信息列表（去重），确保回答"有据可查"
+     * 2. 添加 hasRelevantInfo 标识，前端根据此字段决定是否展示引用
      */
     private Mono<ChatResponse> completeWithMatches(ChatRequest request, List<SearchMatch> matches) {
-        // 构建引用信息列表
-        List<Citation> citations = buildCitations(matches);
+        // 构建引用信息列表（去重）
+        List<Citation> citations = buildCitationsDeduplicated(matches);
 
         // 构建增强的系统提示（注入检索结果作为上下文）
         String augmentedSystemPrompt = buildAugmentedSystemPrompt(matches);
@@ -209,8 +211,9 @@ public class RagOrchestrationService {
                         response.answer(),
                         response.route(),
                         response.usage(),
-                        citations,  // ⭐ 附加引用信息
-                        response.createdAt()
+                        citations,  // ⭐ 附加引用信息（已去重）
+                        response.createdAt(),
+                        true  // ⭐ RAG 场景，有相关信息，前端应展示引用
                 ));
     }
 
@@ -225,8 +228,8 @@ public class RagOrchestrationService {
     ) {
         String eventId = UUID.randomUUID().toString();
 
-        // 构建引用信息列表
-        List<Citation> citations = buildCitations(matches);
+        // 构建引用信息列表（去重）
+        List<Citation> citations = buildCitationsDeduplicated(matches);
 
         // 构建增强的系统提示
         String augmentedSystemPrompt = buildAugmentedSystemPrompt(matches);
@@ -340,6 +343,46 @@ public class RagOrchestrationService {
                     match.documentId(),
                     match.chunkIndex(),
                     match.metadata().getOrDefault("title", "未命名文档").toString(),
+                    match.text().length() > 100 ? match.text().substring(0, 100) + "..." : match.text(),
+                    match.score(),
+                    match.metadata()
+            ));
+        }
+        return citations;
+    }
+
+    /**
+     * 构建引用信息列表（去重） —— 按文档 ID + 标题去重，避免同一文档多个 chunk 重复展示。
+     *
+     * 去重规则：
+     * - 同一个 documentId + title 只保留第一条
+     * - 保留 score 最高的 chunk（因为 matches 已按 score 排序，第一个就是最高的）
+     *
+     * @param matches 检索结果列表
+     * @return 去重后的引用信息列表
+     */
+    private List<Citation> buildCitationsDeduplicated(List<SearchMatch> matches) {
+        List<Citation> citations = new ArrayList<>();
+        // 用于去重：documentId + title
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        int index = 1;
+
+        for (SearchMatch match : matches) {
+            String title = match.metadata().getOrDefault("title", "未命名文档").toString();
+            String dedupKey = match.documentId() + "|" + title;
+
+            // 如果已经添加过相同文档+标题的引用，跳过
+            if (seen.contains(dedupKey)) {
+                continue;
+            }
+            seen.add(dedupKey);
+
+            log.info("📄 引用 {}: title={}, documentId={}", index, title, match.documentId());
+            citations.add(new Citation(
+                    index++,  // 引用序号从 1 开始
+                    match.documentId(),
+                    match.chunkIndex(),
+                    title,
                     match.text().length() > 100 ? match.text().substring(0, 100) + "..." : match.text(),
                     match.score(),
                     match.metadata()
