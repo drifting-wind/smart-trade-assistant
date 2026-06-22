@@ -50,6 +50,7 @@ logging:
   level:
     # 应用日志级别
     com.example.multiai: DEBUG
+    com.trade: DEBUG
   ai:
     dashscope:
       # DashScope AI 日志开关
@@ -263,7 +264,7 @@ ai:
         # 向量检索权重
         vector-weight: 0.7
         # 融合后取 Top-K
-        top-k: 3
+        top-k: 10
 
       # Rerank 重排序配置
       rerank:
@@ -276,7 +277,7 @@ ai:
         # API 密钥
         api-key: ${DASHSCOPE_API_KEY}
         # 重排序后取 Top-K（⭐ 优化：从10减少到3，只保留最相关的3条）
-        top-k: 3
+        top-k: 10
 
     # 模型列表配置
     models:
@@ -293,8 +294,8 @@ ai:
         api-key: ${DEEPSEEK_API_KEY}
         # 模型名称
         model: ${DEEPSEEK_MODEL:deepseek-chat}
-        # 请求超时时间
-        timeout: 60s
+        # 请求超时时间（RAG 问答需要更长时间）
+        timeout: 120s
         # 最大输出 token 数
         max-tokens: 4096
         # 温度参数（值越低输出越确定）
@@ -317,8 +318,8 @@ ai:
         api-key: ${BAILIAN_API_KEY}
         # 模型名称
         model: ${BAILIAN_MODEL:qwen-plus}
-        # 请求超时时间
-        timeout: 60s
+        # 请求超时时间（RAG 问答需要更长时间）
+        timeout: 120s
         # 最大输出 token 数
         max-tokens: 4096
         # 温度参数

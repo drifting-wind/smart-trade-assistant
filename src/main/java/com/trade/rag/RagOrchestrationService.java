@@ -332,6 +332,9 @@ public class RagOrchestrationService {
         List<Citation> citations = new ArrayList<>();
         for (int i = 0; i < matches.size(); i++) {
             SearchMatch match = matches.get(i);
+            // 调试日志：打印 metadata 内容
+            log.info("📄 引用 {}: metadata={}, title={}", i + 1, match.metadata(),
+                    match.metadata().getOrDefault("title", "未命名文档"));
             citations.add(new Citation(
                     i + 1,  // 引用序号从 1 开始
                     match.documentId(),

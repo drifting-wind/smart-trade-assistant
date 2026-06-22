@@ -137,9 +137,12 @@ public class MilvusVectorStoreClient {
 
                 // 添加元数据
                 Map<String, Object> metadata = (Map<String, Object>) row.get("metadata");
+                log.debug("📦 插入文档: document_id={}, chunk_index={}, metadata={}",
+                        row.get("document_id"), row.get("chunk_index"), metadata);
                 if (metadata != null) {
-                    entity.add("metadata", com.google.gson.JsonParser.parseString(
-                            new com.google.gson.Gson().toJson(metadata)));
+                    String metadataJson = new com.google.gson.Gson().toJson(metadata);
+                    log.debug("📦 metadata JSON: {}", metadataJson);
+                    entity.add("metadata", com.google.gson.JsonParser.parseString(metadataJson));
                 }
 
                 return entity;
@@ -415,9 +418,49 @@ public class MilvusVectorStoreClient {
     @SuppressWarnings("unchecked")
     private Map<String, Object> getMetadataValue(RowRecord record, String fieldName) {
         Object value = record.get(fieldName);
+        log.debug("🔍 获取元数据: fieldName={}, value={}, type={}", fieldName, value,
+                value != null ? value.getClass().getName() : "null");
+        if (value == null) {
+            log.debug("🔍 元数据为 null，返回空 Map");
+            return Collections.emptyMap();
+        }
+        // 如果已经是 Map，直接返回
         if (value instanceof Map) {
+            log.debug("🔍 元数据是 Map: {}", value);
             return (Map<String, Object>) value;
         }
+        // 如果是 JsonObject（Milvus SDK 返回类型），转换为 Map
+        if (value instanceof com.google.gson.JsonObject) {
+            log.debug("🔍 元数据是 JsonObject: {}", value);
+            com.google.gson.JsonObject jsonObject = (com.google.gson.JsonObject) value;
+            Map<String, Object> map = new java.util.HashMap<>();
+            for (String key : jsonObject.keySet()) {
+                com.google.gson.JsonElement element = jsonObject.get(key);
+                if (element.isJsonPrimitive()) {
+                    map.put(key, element.getAsString());
+                } else {
+                    map.put(key, element.toString());
+                }
+            }
+            log.debug("🔍 转换后的元数据 Map: {}", map);
+            return map;
+        }
+        // 如果是 JSON 字符串，解析为 Map
+        if (value instanceof String) {
+            try {
+                String jsonStr = (String) value;
+                log.debug("🔍 元数据是 JSON 字符串: {}", jsonStr);
+                if (jsonStr.startsWith("{") && jsonStr.endsWith("}")) {
+                    Map<String, Object> parsed = new com.google.gson.Gson().fromJson(jsonStr,
+                            new com.google.gson.reflect.TypeToken<Map<String, Object>>() {}.getType());
+                    log.debug("🔍 解析后的元数据: {}", parsed);
+                    return parsed;
+                }
+            } catch (Exception e) {
+                log.warn("解析元数据 JSON 失败: {}", e.getMessage());
+            }
+        }
+        log.debug("🔍 元数据格式未知，返回空 Map");
         return Collections.emptyMap();
     }
 }
