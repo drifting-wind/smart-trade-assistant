@@ -113,7 +113,7 @@ public class RagOrchestrationService {
                                     log.info("📚 混合检索完成，共 {} 条结果", matches.size());
 
                                     // ⭐ 优化：如果检索结果质量太差，直接返回"未找到"
-                                    if (matches.isEmpty() || matches.get(0).score() < 0.6) {
+                                    if (matches.isEmpty()||matches.get(0).score() < 0.2) {
                                         log.info("⚠️ 检索结果质量低于阈值，跳过 LLM 调用");
                                         return Mono.just(ChatResponse.noAnswer(question));
                                     }
@@ -300,23 +300,23 @@ public class RagOrchestrationService {
             String title = match.metadata().getOrDefault("title", "未命名文档").toString();
             sb.append("[").append(title).append("] ");
 
-            // ⭐ 优化：截断长度从200改为100，减少上下文冗余
+            // 截断长度，保留完整的上下文信息
             String text = match.text();
-            if (text.length() > 100) {
-                text = text.substring(0, 100) + "...";
+            if (text.length() > 300) {
+                text = text.substring(0, 300) + "...";
             }
             sb.append(text);
             sb.append("\n");
         }
 
-        // ⭐ 优化：添加严格的回答约束
+        // ⭐ 优化：添加回答约束
         sb.append("\n回答要求：\n");
         sb.append("- 直接给出答案，不要\"好的\"、\"当然可以\"等客套话\n");
         sb.append("- 只基于参考资料，不编造、不推测、不扩展\n");
         sb.append("- 如果没有相关信息，只说\"参考资料中未找到相关信息\"\n");
-        sb.append("- 控制在3句话或50字以内\n");
+        sb.append("- 答案应尽可能详细、完整，尽可能完整地利用参考资料中的内容\n");
         sb.append("- 不要用\"根据以上信息\"、\"综上所述\"等总结性开头\n");
-        sb.append("- 不要添加建议、提醒、注意事项等无关内容\n");
+        sb.append("- 如果有必要，可以给出具体的数据、步骤、分类等细节内容\n");
         sb.append("- 不要输出问候语，不要问\"还有其他问题吗？\"\n");
 
         // ⭐ 新增：要求标注引用来源

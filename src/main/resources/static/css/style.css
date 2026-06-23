@@ -155,6 +155,7 @@ pre {
   display: flex;
   flex-direction: column;
   height: 100%;
+  max-height: calc(100vh - 80px);
 }
 .rag-panel {
   border: 1px solid var(--purple-border);
@@ -200,7 +201,6 @@ pre {
   flex-direction: column;
   flex: 1;
   overflow: hidden;
-  min-height: 420px;
 }
 .rag-input-area {
   display: flex;
@@ -241,7 +241,6 @@ pre {
   flex-direction: column;
   gap: 6px;
   background: #faf8ff;
-  min-height: 320px;
 }
 .rag-msg {
   display: flex;
