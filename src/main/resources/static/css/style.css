@@ -41,7 +41,8 @@ main {
   margin: 0 auto;
   padding: 12px;
   align-items: stretch;
-  min-height: calc(100vh - 80px);
+  height: calc(100vh - 80px);
+  overflow: hidden;
 }
 section {
   background: var(--panel);
@@ -50,7 +51,7 @@ section {
   padding: 14px;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  overflow: hidden;
 }
 h2 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
 h3 { font-size: 13px; font-weight: 600; }
@@ -70,7 +71,12 @@ input:focus, textarea:focus, select:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
 }
-textarea { min-height: 180px; resize: vertical; line-height: 1.5; }
+textarea { min-height: 100px; resize: none; line-height: 1.5; }
+/* 左侧客户询盘区域可滚动 */
+section:first-of-type {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
 button {
@@ -117,10 +123,19 @@ button:disabled { opacity: 0.5; cursor: wait; }
   cursor: pointer;
 }
 .tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+/* 中间显示区域容器 */
+.summary-box {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  background: #fafbfc;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
 pre {
   margin: 0;
-  flex: 1;
-  min-height: 420px;
   overflow: auto;
   padding: 12px;
   border-radius: 6px;
@@ -135,8 +150,6 @@ pre {
 .tasks {
   display: grid;
   gap: 6px;
-  flex: 1;
-  min-height: 420px;
   overflow: auto;
 }
 .task {
@@ -408,9 +421,11 @@ pre {
 }
 
 @media (max-width: 980px) {
-  main { grid-template-columns: 1fr; }
+  main { grid-template-columns: 1fr; height: auto; overflow: visible; }
   .board { grid-template-columns: 1fr; }
   .actions { grid-template-columns: 1fr; }
+  section { height: auto; max-height: 600px; }
+}
 }
 
 /* ⭐ 商机摘要卡片样式 - 大气美观 */

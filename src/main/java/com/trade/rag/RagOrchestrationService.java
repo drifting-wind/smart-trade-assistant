@@ -113,7 +113,8 @@ public class RagOrchestrationService {
                                     log.info("📚 混合检索完成，共 {} 条结果", matches.size());
 
                                     // ⭐ 优化：如果检索结果质量太差，直接返回"未找到"
-                                    if (matches.isEmpty()||matches.get(0).score() < 0.2) {
+                                    if (matches.isEmpty()) {
+//                                        if (matches.isEmpty()||matches.get(0).score() < 0.6) {
                                         log.info("⚠️ 检索结果质量低于阈值，跳过 LLM 调用");
                                         return Mono.just(ChatResponse.noAnswer(question));
                                     }
