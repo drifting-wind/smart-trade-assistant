@@ -39,8 +39,11 @@ public class GlobalExceptionHandler {
     }
 
     /** 安全检查失败 —— 400 Bad Request，返回具体的安全问题 */
-    @ExceptionHandler(ChatController.SecurityException.class)
-    public ResponseEntity<ApiErrorResponse> security(ChatController.SecurityException error, ServerWebExchange exchange) {
+    @ExceptionHandler({
+        ChatController.SecurityException.class,
+        com.trade.trade.api.TradeSalesController.SecurityException.class
+    })
+    public ResponseEntity<ApiErrorResponse> security(RuntimeException error, ServerWebExchange exchange) {
         return ResponseEntity.badRequest()
                 .body(body("SECURITY_VIOLATION", error.getMessage(), List.of("请求包含不安全内容，已被拦截"), exchange));
     }

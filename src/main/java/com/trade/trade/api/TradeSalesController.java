@@ -1,6 +1,9 @@
 package com.trade.trade.api;
 
 import com.trade.dto.AiStreamEvent;
+import com.trade.security.PromptInjectionGuard;
+import com.trade.security.SensitiveWordFilter;
+import com.trade.security.XssFilter;
 import com.trade.trade.dto.OpportunityAnalysisResponse;
 import com.trade.trade.dto.SalesPlanResponse;
 import com.trade.trade.dto.TradeInquiryRequest;
@@ -14,6 +17,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.validation.annotation.Validated;
@@ -60,10 +65,23 @@ public class TradeSalesController {
      * - System Prompt 是外贸领域专用的（分析模板、规划模板、邮件模板）
      * - JSON 解析针对外贸字段定制（leadScore、riskLevel、pricingAdvice 等）
      */
-    private final TradeSalesService tradeSalesService;
+    private static final Logger log = LoggerFactory.getLogger(TradeSalesController.class);
 
-    public TradeSalesController(TradeSalesService tradeSalesService) {
+    private final TradeSalesService tradeSalesService;
+    private final SensitiveWordFilter sensitiveWordFilter;
+    private final PromptInjectionGuard promptInjectionGuard;
+    private final XssFilter xssFilter;
+
+    public TradeSalesController(
+            TradeSalesService tradeSalesService,
+            SensitiveWordFilter sensitiveWordFilter,
+            PromptInjectionGuard promptInjectionGuard,
+            XssFilter xssFilter
+    ) {
         this.tradeSalesService = tradeSalesService;
+        this.sensitiveWordFilter = sensitiveWordFilter;
+        this.promptInjectionGuard = promptInjectionGuard;
+        this.xssFilter = xssFilter;
     }
 
     /**
@@ -150,7 +168,14 @@ public class TradeSalesController {
             )
     })
     public Mono<OpportunityAnalysisResponse> analyze(@Valid @RequestBody TradeInquiryRequest request) {
-        return tradeSalesService.analyze(request);
+        // 安全检查
+        String sanitized = sanitizeInput(request.message());
+        if (sanitized == null) {
+            return Mono.error(new SecurityException("请求包含不安全内容，已被拦截"));
+        }
+        // 使用清洗后的输入构建新请求
+        TradeInquiryRequest safeRequest = buildSafeRequest(request, sanitized);
+        return tradeSalesService.analyze(safeRequest);
     }
 
     /**
@@ -216,7 +241,13 @@ public class TradeSalesController {
             @ApiResponse(responseCode = "401", description = "未授权")
     })
     public Mono<SalesPlanResponse> salesPlan(@Valid @RequestBody TradeInquiryRequest request) {
-        return tradeSalesService.salesPlan(request);
+        // 安全检查
+        String sanitized = sanitizeInput(request.message());
+        if (sanitized == null) {
+            return Mono.error(new SecurityException("请求包含不安全内容，已被拦截"));
+        }
+        TradeInquiryRequest safeRequest = buildSafeRequest(request, sanitized);
+        return tradeSalesService.salesPlan(safeRequest);
     }
 
     /**
@@ -283,12 +314,72 @@ public class TradeSalesController {
             @ApiResponse(responseCode = "401", description = "未授权")
     })
     public Flux<ServerSentEvent<AiStreamEvent>> streamReply(@Valid @RequestBody TradeInquiryRequest request) {
-        return tradeSalesService.streamCustomerReply(request)
+        // 安全检查
+        String sanitized = sanitizeInput(request.message());
+        if (sanitized == null) {
+            return Flux.error(new SecurityException("请求包含不安全内容，已被拦截"));
+        }
+        TradeInquiryRequest safeRequest = buildSafeRequest(request, sanitized);
+        return tradeSalesService.streamCustomerReply(safeRequest)
                 // 将内部 AiStreamEvent 包装为 HTTP SSE 格式推送给客户端
                 .map(event -> ServerSentEvent.<AiStreamEvent>builder()
                         .id(event.id())                           // SSE 事件 ID，用于断线重连定位
                         .event(event.type().name().toLowerCase()) // 事件类型：route/token/done/error
                         .data(event)                              // JSON 序列化后的事件数据
                         .build());
+    }
+
+    /**
+     * 安全检查：XSS → Prompt 注入 → 敏感词。
+     * 返回清洗后的文本，如果被拦截则返回 null。
+     */
+    private String sanitizeInput(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        // 1. XSS 检查（检测到直接拦截，不做清洗）
+        if (xssFilter.containsXss(input)) {
+            log.warn("XSS attack detected in trade request, blocked");
+            return null; // 拦截
+        }
+        // 2. Prompt 注入检查
+        if (promptInjectionGuard.detectInjection(input)) {
+            log.warn("Prompt injection detected in trade request");
+            return null; // 拦截
+        }
+        // 3. 敏感词过滤
+        if (sensitiveWordFilter.containsSensitiveWord(input)) {
+            input = sensitiveWordFilter.replaceSensitiveWords(input);
+        }
+        return input;
+    }
+
+    /**
+     * 构建安全的请求对象（替换清洗后的 message 字段）
+     */
+    private TradeInquiryRequest buildSafeRequest(TradeInquiryRequest original, String sanitizedMessage) {
+        return new TradeInquiryRequest(
+                original.conversationId(),
+                original.customerName(),
+                original.companyName(),
+                original.country(),
+                original.productName(),
+                original.quantity(),
+                original.targetPrice(),
+                original.incoterm(),
+                original.destinationPort(),
+                sanitizedMessage,
+                original.preferredModel(),
+                original.metadata()
+        );
+    }
+
+    /**
+     * 安全异常
+     */
+    public static class SecurityException extends RuntimeException {
+        public SecurityException(String message) {
+            super(message);
+        }
     }
 }
