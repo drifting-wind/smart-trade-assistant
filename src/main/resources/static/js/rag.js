@@ -144,14 +144,14 @@ async function askRag() {
             hasRelevantInfo = citations.length > 0;
           }
 
-          // 处理 DONE 事件（包含完整的响应数据）
-          if (eventData.type === "DONE" && eventData.response) {
-            // 从完整响应中获取 hasRelevantInfo
-            if (eventData.response.hasRelevantInfo !== undefined) {
-              hasRelevantInfo = eventData.response.hasRelevantInfo;
+          // 处理 DONE 事件（包含 hasRelevantInfo 字段）
+          if (eventData.type === "DONE") {
+            // 直接从事件中获取 hasRelevantInfo（不是从 response 中）
+            if (eventData.hasRelevantInfo !== undefined && eventData.hasRelevantInfo !== null) {
+              hasRelevantInfo = eventData.hasRelevantInfo;
             }
-            if (eventData.response.citations) {
-              citations = eventData.response.citations;
+            if (eventData.citations) {
+              citations = eventData.citations;
             }
           }
         } catch (e) { /* skip malformed */ }
