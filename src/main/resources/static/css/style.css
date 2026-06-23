@@ -79,6 +79,26 @@ section:first-of-type {
 }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
+/* 左侧提示区域 */
+.tips-box {
+  margin-top: auto;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.tips-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e40af;
+  margin-bottom: 6px;
+}
+.tips-content {
+  font-size: 11px;
+  color: #3b82f6;
+  line-height: 1.6;
+}
 button {
   border: 0;
   border-radius: 6px;
