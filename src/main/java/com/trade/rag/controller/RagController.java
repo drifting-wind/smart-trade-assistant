@@ -99,9 +99,10 @@ public class RagController {
      * }
      */
     @GetMapping("/documents/{documentId}")
+    @RateLimiter(name = "api") // 限流：每秒 100 次请求
     @Operation(
-            summary = "获取文档信息",
-            description = "根据文档 ID 获取文档详细信息（标题、类型、创建时间等）"
+            summary = "获取文档信息（公开）",
+            description = "根据文档 ID 获取文档详细信息（标题、类型、创建时间等），无需认证"
     )
     @ApiResponses(value = {
             @ApiResponse(

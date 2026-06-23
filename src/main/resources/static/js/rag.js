@@ -46,7 +46,7 @@ function renderRagMessages() {
         return `
           <div class="citation-item">
             <span class="citation-index">[${c.index}]</span>
-            <a href="/api/v1/knowledge/documents/${c.documentId}"
+            <a href="/document.html?docId=${c.documentId}"
                target="_blank"
                class="citation-link"
                title="打开文档">${title}</a>

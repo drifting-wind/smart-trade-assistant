@@ -57,6 +57,7 @@ public class ApiTokenWebFilter implements WebFilter {
     /**
      * 判断是否为公开路径 —— 不需要认证。
      * 规则：非 /api/v1/ 开头的路径（如 /actuator/health、/swagger-ui）不拦截。
+     * 文档信息接口 /api/v1/knowledge/documents/{id} 也允许公开访问。
      */
     private boolean isPublicPath(ServerWebExchange exchange) {
         String path = exchange.getRequest().getPath().pathWithinApplication().value();
@@ -64,7 +65,9 @@ public class ApiTokenWebFilter implements WebFilter {
                 || path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
                 || path.startsWith("/swagger-ui")
-                || path.equals("/swagger-ui.html");
+                || path.equals("/swagger-ui.html")
+                || path.matches("/api/v1/knowledge/documents/[^/]+$") // 文档信息接口公开访问
+                || path.matches("/api/v1/knowledge/documents/[^/]+/chunks$"); // 文档内容接口公开访问
     }
 
     /**

@@ -254,11 +254,19 @@ public class MilvusVectorStoreClient {
         try {
             log.debug("🔍 Milvus 过滤搜索: expr={}, topK={}", expr, topK);
 
+            // 构建查询向量（全零向量，仅用于满足 Milvus 搜索要求）
+            List<Float> queryVector = new ArrayList<>();
+            for (int i = 0; i < dimension; i++) {
+                queryVector.add(0.0f);
+            }
+
             // 构建搜索参数
             SearchParam searchParam = SearchParam.newBuilder()
                     .withCollectionName(collectionName)
                     .withMetricType(MetricType.COSINE)
                     .withTopK(topK)
+                    .withVectors(Arrays.asList(queryVector))
+                    .withVectorFieldName("embedding")
                     .withExpr(expr)
                     .withOutFields(Arrays.asList("document_id", "chunk_index", "text", "metadata"))
                     .withParams("{\"nprobe\": 16}")

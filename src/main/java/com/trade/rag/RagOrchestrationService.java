@@ -203,6 +203,8 @@ public class RagOrchestrationService {
         );
 
         // 调用 ChatOrchestrationService，并附加引用信息
+        // ⭐ 只有当 citations 非空时，hasRelevantInfo 才为 true
+        boolean hasRelevant = !citations.isEmpty();
         return chatService.complete(augmentedRequest)
                 .map(response -> new ChatResponse(
                         response.id(),
@@ -213,7 +215,7 @@ public class RagOrchestrationService {
                         response.usage(),
                         citations,  // ⭐ 附加引用信息（已去重）
                         response.createdAt(),
-                        true  // ⭐ RAG 场景，有相关信息，前端应展示引用
+                        hasRelevant  // ⭐ 只有检索到结果时才展示引用
                 ));
     }
 
