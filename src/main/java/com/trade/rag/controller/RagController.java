@@ -119,6 +119,91 @@ public class RagController {
         return ingestionService.getDocumentInfo(documentId);
     }
 
+    /**
+     * 预览原始文件 —— 返回文件流供浏览器预览
+     */
+    @GetMapping("/documents/{documentId}/preview")
+    @Operation(summary = "预览原始文件", description = "返回原始文件流，支持 PDF、图片等格式")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "成功返回文件流"),
+            @ApiResponse(responseCode = "404", description = "文件不存在")
+    })
+    public Mono<org.springframework.http.ResponseEntity<org.springframework.core.io.buffer.DataBuffer>> previewDocument(
+            @PathVariable String documentId) {
+        return ingestionService.getOriginalFile(documentId)
+                .map(bytes -> {
+                    String fileName = getFileName(documentId);
+                    String contentType = getContentType(fileName);
+
+                    org.springframework.core.io.buffer.DataBuffer buffer =
+                            new org.springframework.core.io.buffer.DefaultDataBufferFactory().wrap(bytes);
+
+                    return org.springframework.http.ResponseEntity.ok()
+                            .header("Content-Type", contentType)
+                            .header("Content-Disposition", "inline; filename=\"" + fileName + "\"")
+                            .body(buffer);
+                })
+                .defaultIfEmpty(org.springframework.http.ResponseEntity.notFound().build());
+    }
+
+    /**
+     * 下载原始文件
+     */
+    @GetMapping("/documents/{documentId}/download")
+    @RateLimiter(name = "api")
+    @Operation(summary = "下载原始文件", description = "下载原始文件，浏览器会提示保存")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "成功返回文件流"),
+            @ApiResponse(responseCode = "404", description = "文件不存在")
+    })
+    public Mono<org.springframework.http.ResponseEntity<org.springframework.core.io.buffer.DataBuffer>> downloadDocument(
+            @PathVariable String documentId) {
+        return ingestionService.getOriginalFile(documentId)
+                .map(bytes -> {
+                    String fileName = getFileName(documentId);
+                    String contentType = "application/octet-stream";
+
+                    org.springframework.core.io.buffer.DataBuffer buffer =
+                            new org.springframework.core.io.buffer.DefaultDataBufferFactory().wrap(bytes);
+
+                    return org.springframework.http.ResponseEntity.ok()
+                            .header("Content-Type", contentType)
+                            .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
+                            .body(buffer);
+                })
+                .defaultIfEmpty(org.springframework.http.ResponseEntity.notFound().build());
+    }
+
+    /**
+     * 获取文件名（从 MinIO 中获取）
+     */
+    private String getFileName(String documentId) {
+        // 从 Milvus 元数据中获取原始文件名
+        var docInfo = ingestionService.getDocumentInfo(documentId).block();
+        if (docInfo != null && docInfo.metadata() != null) {
+            Object fileName = docInfo.metadata().get("originalFileName");
+            if (fileName != null) return fileName.toString();
+        }
+        return "document";
+    }
+
+    /**
+     * 根据文件名获取 Content-Type
+     */
+    private String getContentType(String fileName) {
+        if (fileName == null) return "application/octet-stream";
+        String lower = fileName.toLowerCase();
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".txt")) return "text/plain";
+        if (lower.endsWith(".md")) return "text/markdown";
+        if (lower.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (lower.endsWith(".doc")) return "application/msword";
+        return "application/octet-stream";
+    }
+
     @PostMapping(value = "/documents/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RateLimiter(name = "upload") // 限流：每分钟 10 次请求
     @Operation(

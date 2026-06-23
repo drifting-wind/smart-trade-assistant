@@ -42,13 +42,20 @@ public record AiStreamEvent(
         String content,
 
         /**
+         * 是否有相关信息 —— 仅在 DONE 事件中携带，用于前端决定是否展示引用。
+         * true：后端检索到了相关信息，前端应展示 citations 列表
+         * false：后端未检索到相关信息，前端应隐藏 citations 列表
+         */
+        Boolean hasRelevantInfo,
+
+        /**
          * 路由决策 —— 仅在 ROUTE 事件中携带，其他事件为 null。
          * 告知客户端本次流式请求选择了哪个模型及原因。
          */
         RouteDecisionDto route,
 
         /**
-         * 引用信息列表 —— 仅在 CITATIONS 事件中携带，其他事件为 null。
+         * 引用信息列表 —— 在 CITATIONS 和 DONE 事件中携带，其他事件为 null。
          * 流式结束后发送，包含回答中引用的所有来源，用于溯源定位。
          */
         List<Citation> citations,
@@ -59,19 +66,23 @@ public record AiStreamEvent(
         Instant createdAt
 ) {
     public static AiStreamEvent route(String id, RouteDecisionDto route) {
-        return new AiStreamEvent(id, StreamEventType.ROUTE, route.selectedModel(), null, route, null, Instant.now());
+        return new AiStreamEvent(id, StreamEventType.ROUTE, route.selectedModel(), null, null, route, null, Instant.now());
     }
 
     public static AiStreamEvent token(String id, ModelProvider model, String token) {
-        return new AiStreamEvent(id, StreamEventType.TOKEN, model, token, null, null, Instant.now());
+        return new AiStreamEvent(id, StreamEventType.TOKEN, model, token, null, null, null, Instant.now());
     }
 
     public static AiStreamEvent done(String id, ModelProvider model) {
-        return new AiStreamEvent(id, StreamEventType.DONE, model, null, null, null, Instant.now());
+        return new AiStreamEvent(id, StreamEventType.DONE, model, null, null, null, null, Instant.now());
+    }
+
+    public static AiStreamEvent done(String id, ModelProvider model, boolean hasRelevantInfo, List<Citation> citations) {
+        return new AiStreamEvent(id, StreamEventType.DONE, model, null, hasRelevantInfo, null, citations, Instant.now());
     }
 
     public static AiStreamEvent error(String id, ModelProvider model, String message) {
-        return new AiStreamEvent(id, StreamEventType.ERROR, model, message, null, null, Instant.now());
+        return new AiStreamEvent(id, StreamEventType.ERROR, model, message, null, null, null, Instant.now());
     }
 
     /**
@@ -82,6 +93,6 @@ public record AiStreamEvent(
      * @return AiStreamEvent 实例
      */
     public static AiStreamEvent citations(String id, List<Citation> citations) {
-        return new AiStreamEvent(id, StreamEventType.CITATIONS, null, null, null, citations, Instant.now());
+        return new AiStreamEvent(id, StreamEventType.CITATIONS, null, null, null, null, citations, Instant.now());
     }
 }

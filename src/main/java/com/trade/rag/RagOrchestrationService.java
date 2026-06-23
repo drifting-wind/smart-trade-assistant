@@ -268,7 +268,9 @@ public class RagOrchestrationService {
                 Mono.just(searchResultEvent),
                 chatService.stream(augmentedRequest),
                 // ⭐ 流式结束后发送引用信息事件
-                Mono.just(AiStreamEvent.citations(eventId, citations))
+                Mono.just(AiStreamEvent.citations(eventId, citations)),
+                // ⭐ 发送包含 hasRelevantInfo 的 DONE 事件
+                Mono.just(AiStreamEvent.done(eventId, null, !citations.isEmpty(), citations))
         );
     }
 

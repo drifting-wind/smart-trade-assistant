@@ -164,7 +164,8 @@ public class ChatOrchestrationService {
                 .concatWith(Mono.fromSupplier(() -> {
                     // 流式完成后：保存完整回答到会话记忆
                     memoryService.appendTurn(prompt.conversationId(), request.question(), answer.toString());
-                    return AiStreamEvent.done(eventId, route.selectedModel());
+                    // 非 RAG 场景：hasRelevantInfo = false, citations = emptyList
+                    return AiStreamEvent.done(eventId, route.selectedModel(), false, java.util.Collections.emptyList());
                 }))
                 .onErrorResume(error -> Mono.just(AiStreamEvent.error(eventId, route.selectedModel(), error.getMessage())));
         // 路由决策事件排在最前面，后面紧跟 token 流

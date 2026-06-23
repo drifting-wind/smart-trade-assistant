@@ -67,7 +67,9 @@ public class ApiTokenWebFilter implements WebFilter {
                 || path.startsWith("/swagger-ui")
                 || path.equals("/swagger-ui.html")
                 || path.matches("/api/v1/knowledge/documents/[^/]+$") // 文档信息接口公开访问
-                || path.matches("/api/v1/knowledge/documents/[^/]+/chunks$"); // 文档内容接口公开访问
+                || path.matches("/api/v1/knowledge/documents/[^/]+/chunks$") // 文档内容接口公开访问
+                || path.matches("/api/v1/knowledge/documents/[^/]+/preview$") // 文件预览接口公开访问
+                || path.matches("/api/v1/knowledge/documents/[^/]+/download$"); // 文件下载接口公开访问
     }
 
     /**

@@ -328,3 +328,10 @@ ai:
         weight: 1.0
         # 模型能力：问答、长文本、流程、规划、写作
         capabilities: qa,long_context,process,planning,writing
+
+# MinIO 对象存储配置
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket-name: documents

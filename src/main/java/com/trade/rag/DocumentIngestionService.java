@@ -4,6 +4,7 @@ import com.trade.config.AiGatewayProperties;
 import com.trade.exception.VectorStoreException;
 import com.trade.rag.dto.DocumentUploadRequest;
 import com.trade.rag.dto.DocumentUploadResponse;
+import com.trade.service.MinioStorageService;
 import com.trade.rag.dto.BatchUploadResponse;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.splitter.DocumentSplitters;
@@ -53,19 +54,22 @@ public class DocumentIngestionService {
     private final Bm25IndexService bm25IndexService;
     private final AiGatewayProperties.Rag ragProperties;
     private final WebClient webClient;
+    private final MinioStorageService minioStorageService;
 
     public DocumentIngestionService(
             EmbeddingService embeddingService,
             MilvusVectorStoreClient vectorStoreClient,
             Bm25IndexService bm25IndexService,
             AiGatewayProperties properties,
-            WebClient.Builder webClientBuilder
+            WebClient.Builder webClientBuilder,
+            MinioStorageService minioStorageService
     ) {
         this.embeddingService = embeddingService;
         this.vectorStoreClient = vectorStoreClient;
         this.bm25IndexService = bm25IndexService;
         this.ragProperties = properties.getRag();
         this.webClient = webClientBuilder.build();
+        this.minioStorageService = minioStorageService;
     }
 
     /**
@@ -86,7 +90,14 @@ public class DocumentIngestionService {
         String documentId = UUID.randomUUID().toString();
 
         return readFileBytes(file)
-                .flatMap(bytes -> parseAndIngest(documentId, bytes, request))
+                .flatMap(bytes -> {
+                    // 保存原始文件到 MinIO
+                    String fileName = file.filename();
+                    String contentType = request.contentType() != null ? request.contentType() : "application/octet-stream";
+                    minioStorageService.storeFile(documentId, fileName, bytes, contentType);
+
+                    return parseAndIngest(documentId, bytes, request, file.filename());
+                })
                 .onErrorMap(e -> new VectorStoreException("文件摄入失败: " + e.getMessage(), e));
     }
 
@@ -190,9 +201,14 @@ public class DocumentIngestionService {
      */
     public Mono<DocumentUploadResponse> ingestFromUrl(String fileUrl, DocumentUploadRequest request) {
         String documentId = UUID.randomUUID().toString();
+        // 从 URL 提取文件名
+        String rawFileName = fileUrl.substring(fileUrl.lastIndexOf('/') + 1);
+        final String fileName = rawFileName.contains("?")
+                ? rawFileName.substring(0, rawFileName.indexOf("?"))
+                : rawFileName;
 
         return downloadFileBytes(fileUrl)
-                .flatMap(bytes -> parseAndIngest(documentId, bytes, request))
+                .flatMap(bytes -> parseAndIngest(documentId, bytes, request, fileName))
                 .onErrorMap(e -> new VectorStoreException("URL 摄入失败: " + e.getMessage(), e));
     }
 
@@ -208,7 +224,8 @@ public class DocumentIngestionService {
      */
     public Mono<DocumentUploadResponse> ingestText(String text, DocumentUploadRequest request) {
         String documentId = UUID.randomUUID().toString();
-        return ingestText(documentId, text, request);
+        // 对于文本上传，没有原始文件名，使用空字符串
+        return ingestText(documentId, text, request, "");
     }
 
     /**
@@ -217,7 +234,7 @@ public class DocumentIngestionService {
      * 改进：自动检测文件实际格式，解决扩展名与实际格式不匹配的问题。
      * 例如：文件扩展名是 .docx，但实际是旧版 .doc 格式（OLE2），则自动切换到 DOC 解析器。
      */
-    private Mono<DocumentUploadResponse> parseAndIngest(String documentId, byte[] bytes, DocumentUploadRequest request) {
+    private Mono<DocumentUploadResponse> parseAndIngest(String documentId, byte[] bytes, DocumentUploadRequest request, String originalFileName) {
         String contentType = request.contentType();
         if (contentType == null) {
             contentType = detectContentType(request.title());
@@ -235,7 +252,7 @@ public class DocumentIngestionService {
         log.info("📄 文档解析完成: {}, 文本长度: {} 字符", request.title(), text.length());
 
         // 摄入文本
-        return ingestText(documentId, text, request);
+        return ingestText(documentId, text, request, originalFileName);
     }
 
     /**
@@ -390,7 +407,7 @@ public class DocumentIngestionService {
     /**
      * 核心摄入逻辑 —— 文本 → 分块 → Embedding → Milvus。
      */
-    private Mono<DocumentUploadResponse> ingestText(String documentId, String text, DocumentUploadRequest request) {
+    private Mono<DocumentUploadResponse> ingestText(String documentId, String text, DocumentUploadRequest request, String originalFileName) {
         return Mono.fromCallable(() -> {
             log.info("📄 开始摄入文档: {}, 文本长度: {} 字符", documentId, text.length());
 
@@ -423,6 +440,7 @@ public class DocumentIngestionService {
                 metadata.put("title", request.title());
                 metadata.put("content_type", request.contentType());
                 metadata.put("created_at", Instant.now().toString());
+                metadata.put("originalFileName", originalFileName); // 保存原始文件名
                 if (request.metadata() != null) {
                     metadata.putAll(request.metadata());
                 }
@@ -543,6 +561,40 @@ public class DocumentIngestionService {
      */
     public Mono<Void> deleteDocument(String documentId) {
         return vectorStoreClient.deleteByDocumentId(documentId);
+    }
+
+    /**
+     * 获取原始文件内容 —— 从 MinIO 获取原始文件字节
+     *
+     * @param documentId 文档 ID
+     * @return 文件内容字节数组
+     */
+    public Mono<byte[]> getOriginalFile(String documentId) {
+        return Mono.fromCallable(() -> {
+            // 从 Milvus 元数据中获取原始文件名
+            String expr = "document_id == \"" + documentId + "\"";
+            var searchResults = vectorStoreClient.searchWithFilter(expr, 1);
+
+            if (searchResults.isEmpty()) {
+                throw new RuntimeException("文档不存在: " + documentId);
+            }
+
+            var firstResult = searchResults.get(0);
+            var metadata = firstResult.metadata();
+            String originalFileName = metadata.getOrDefault("originalFileName", "").toString();
+
+            if (originalFileName.isEmpty()) {
+                throw new RuntimeException("原始文件名不存在: " + documentId);
+            }
+
+            // 从 MinIO 获取文件
+            byte[] content = minioStorageService.getFile(documentId, originalFileName);
+            if (content == null) {
+                throw new RuntimeException("文件内容不存在: " + documentId);
+            }
+
+            return content;
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
     /**

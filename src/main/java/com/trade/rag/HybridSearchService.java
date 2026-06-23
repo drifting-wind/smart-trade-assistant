@@ -1,11 +1,14 @@
 package com.trade.rag;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trade.config.AiGatewayProperties;
 import com.trade.rag.dto.SearchResultDto.SearchMatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -39,17 +42,20 @@ public class HybridSearchService {
     private final MilvusVectorStoreClient vectorStoreClient;
     private final Bm25IndexService bm25IndexService;
     private final AiGatewayProperties properties;
+    private final ObjectMapper objectMapper;
 
     public HybridSearchService(
             EmbeddingService embeddingService,
             MilvusVectorStoreClient vectorStoreClient,
             Bm25IndexService bm25IndexService,
-            AiGatewayProperties properties
+            AiGatewayProperties properties,
+            ObjectMapper objectMapper
     ) {
         this.embeddingService = embeddingService;
         this.vectorStoreClient = vectorStoreClient;
         this.bm25IndexService = bm25IndexService;
         this.properties = properties;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -174,12 +180,20 @@ public class HybridSearchService {
             String key = match.documentId() + ":" + match.chunkIndex();
             double score = bm25Weight * (1.0 / (RRF_K + i + 1));
 
-            fusedMap.computeIfAbsent(key, k -> new FusedMatch(match))
-                    .addScore(score);
+            // 保留有 metadata 的结果（向量检索结果）
+            FusedMatch existing = fusedMap.get(key);
+            if (existing != null && existing.getMatch().metadata().isEmpty() && !match.metadata().isEmpty()) {
+                // 替换为有 metadata 的结果
+                fusedMap.put(key, new FusedMatch(match));
+                fusedMap.get(key).addScore(existing.getScore());
+            } else {
+                fusedMap.computeIfAbsent(key, k -> new FusedMatch(match))
+                        .addScore(score);
+            }
         }
 
         // 按融合得分降序排列，取 Top-K
-        return fusedMap.values().stream()
+        List<SearchMatch> results = fusedMap.values().stream()
                 .sorted(Comparator.comparingDouble(FusedMatch::getScore).reversed())
                 .limit(topK)
                 .map(fused -> new SearchMatch(
@@ -190,6 +204,72 @@ public class HybridSearchService {
                         fused.getMatch().metadata()
                 ))
                 .collect(Collectors.toList());
+
+        // 如果结果中的 metadata 为空，从 Milvus 中获取 metadata
+        if (results.stream().anyMatch(m -> m.metadata().isEmpty())) {
+            return enrichMetadataFromMilvus(results).block();
+        }
+
+        return results;
+    }
+
+    /**
+     * 从 Milvus 中获取 metadata 并 enrich 到搜索结果中
+     */
+    private Mono<List<SearchMatch>> enrichMetadataFromMilvus(List<SearchMatch> results) {
+        // 获取所有需要查询的 documentId
+        Set<String> documentIds = results.stream()
+                .filter(m -> m.metadata().isEmpty())
+                .map(SearchMatch::documentId)
+                .collect(Collectors.toSet());
+
+        if (documentIds.isEmpty()) {
+            return Mono.just(results);
+        }
+
+        // 从 Milvus 中查询 metadata
+        return Mono.fromCallable(() -> {
+            Map<String, Map<String, Object>> metadataMap = new HashMap<>();
+            for (String docId : documentIds) {
+                try {
+                    String expr = "document_id == \"" + docId + "\"";
+                    var queryResults = vectorStoreClient.query(expr);
+                    if (queryResults != null && queryResults.getData() != null) {
+                        // 从 QueryResults 中获取字段数据
+                        var queryData = queryResults.getData();
+                        // 使用 QueryResultsWrapper 解析结果
+                        var wrapper = new io.milvus.response.QueryResultsWrapper(queryData);
+                        var rowRecords = wrapper.getRowRecords();
+                        if (!rowRecords.isEmpty()) {
+                            var record = rowRecords.get(0);
+                            Map<String, Object> metadata = vectorStoreClient.getMetadataValue(record, "metadata");
+                            if (metadata != null && !metadata.isEmpty()) {
+                                metadataMap.put(docId, metadata);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("获取 metadata 失败: documentId={}", docId, e);
+                }
+            }
+            return metadataMap;
+        }).subscribeOn(Schedulers.boundedElastic())
+        .map(metadataMap -> {
+            return results.stream()
+                    .map(match -> {
+                        if (match.metadata().isEmpty() && metadataMap.containsKey(match.documentId())) {
+                            return new SearchMatch(
+                                    match.text(),
+                                    match.score(),
+                                    match.documentId(),
+                                    match.chunkIndex(),
+                                    metadataMap.get(match.documentId())
+                            );
+                        }
+                        return match;
+                    })
+                    .collect(Collectors.toList());
+        });
     }
 
     /**

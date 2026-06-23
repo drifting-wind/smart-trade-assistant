@@ -479,7 +479,7 @@ public class MilvusVectorStoreClient {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> getMetadataValue(RowRecord record, String fieldName) {
+    public Map<String, Object> getMetadataValue(RowRecord record, String fieldName) {
         Object value = record.get(fieldName);
         log.debug("🔍 获取元数据: fieldName={}, value={}, type={}", fieldName, value,
                 value != null ? value.getClass().getName() : "null");

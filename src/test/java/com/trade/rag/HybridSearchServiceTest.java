@@ -1,5 +1,6 @@
 package com.trade.rag;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trade.config.AiGatewayProperties;
 import com.trade.rag.dto.SearchResultDto.SearchMatch;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,7 +69,8 @@ class HybridSearchServiceTest {
                 embeddingService,
                 vectorStoreClient,
                 bm25IndexService,
-                properties
+                properties,
+                new ObjectMapper()
         );
     }
 
