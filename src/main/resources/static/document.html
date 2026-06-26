@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文档详情</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f8f9fb;
+            color: #1a1d23;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .header {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid #e5e7eb;
+        }
+        .title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+        .meta {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .meta span {
+            margin-right: 16px;
+        }
+        .content {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .chunks {
+            margin-top: 16px;
+        }
+        .chunk-item {
+            background: #f8f9fb;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        .chunk-index {
+            font-size: 12px;
+            color: #7c3aed;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .chunk-text {
+            font-size: 13px;
+            color: #374151;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 16px;
+            color: #2563eb;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        /* ========== 文件预览区域样式 ========== */
+        .preview-container {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .preview-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-preview {
+            background: #2563eb;
+            color: #fff;
+        }
+
+        .btn-preview:hover {
+            background: #1d4ed8;
+            text-decoration: none;
+            color: #fff;
+        }
+
+        .btn-download {
+            background: #059669;
+            color: #fff;
+        }
+
+        .btn-download:hover {
+            background: #047857;
+            text-decoration: none;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="javascript:history.back()" class="back-link">← 返回</a>
+
+        <div class="header">
+            <h1 class="title" id="title">加载中...</h1>
+            <div class="meta">
+                <span>📄 文档 ID: <code id="documentId">-</code></span>
+                <span>📅 创建时间: <code id="createdAt">-</code></span>
+            </div>
+        </div>
+
+        <!-- 文件预览/下载区域 -->
+        <div id="previewContainer" class="preview-container" style="display: none;">
+            <h2 class="section-title">📄 原始文件</h2>
+            <div class="preview-actions">
+                <a id="previewLink" href="#" target="_blank" class="btn btn-preview">
+                    🔍 预览文件
+                </a>
+                <a id="downloadLink" href="#" class="btn btn-download">
+                    ⬇️ 下载文件
+                </a>
+            </div>
+        </div>
+
+        <div class="content">
+            <h2 class="section-title">📝 文档内容</h2>
+            <div id="chunks" class="chunks">
+                <div class="empty">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 获取文档 ID（支持查询参数或路径参数）
+        const urlParams = new URLSearchParams(window.location.search);
+        let documentId = urlParams.get('docId');
+        if (!documentId) {
+            const pathParts = window.location.pathname.split('/');
+            documentId = pathParts[pathParts.length - 1];
+        }
+
+        // 加载文档信息
+        async function loadDocument() {
+            try {
+                const res = await fetch(`/api/v1/knowledge/documents/${documentId}`);
+                if (!res.ok) throw new Error('文档不存在');
+                const doc = await res.json();
+
+                document.getElementById('title').textContent = doc.title || '未命名文档';
+                document.getElementById('documentId').textContent = doc.documentId;
+                document.getElementById('createdAt').textContent = doc.createdAt
+                    ? new Date(doc.createdAt).toLocaleString('zh-CN')
+                    : '-';
+
+                // 如果有预览链接，显示预览区域
+                const previewContainer = document.getElementById('previewContainer');
+                const previewLink = document.getElementById('previewLink');
+                const downloadLink = document.getElementById('downloadLink');
+
+                if (previewContainer) {
+                    previewContainer.style.display = 'block';
+                    previewLink.href = `/api/v1/knowledge/documents/${documentId}/preview`;
+                    downloadLink.href = `/api/v1/knowledge/documents/${documentId}/download`;
+                }
+            } catch (err) {
+                document.getElementById('title').textContent = '文档不存在';
+                console.error('加载文档失败:', err);
+            }
+        }
+
+        // 加载文档内容（chunks）
+        async function loadChunks() {
+            try {
+                const res = await fetch(`/api/v1/knowledge/documents/${documentId}/chunks`);
+                if (!res.ok) throw new Error('加载失败');
+                const chunks = await res.json();
+
+                const container = document.getElementById('chunks');
+
+                if (chunks.length === 0) {
+                    container.innerHTML = '<div class="empty">暂无内容</div>';
+                    return;
+                }
+
+                container.innerHTML = chunks.map((chunk, i) => `
+                    <div class="chunk-item">
+                        <div class="chunk-index">第 ${i + 1} 段</div>
+                        <div class="chunk-text">${escapeHtml(chunk.text)}</div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                document.getElementById('chunks').innerHTML =
+                    '<div class="empty">加载内容失败</div>';
+                console.error('加载 chunks 失败:', err);
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 初始化
+        loadDocument();
+        loadChunks();
+    </script>
+</body>
+</html>
