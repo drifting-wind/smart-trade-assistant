@@ -81,7 +81,7 @@ section:first-of-type {
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
 /* 左侧提示区域 */
 .tips-box {
-  margin-top: auto;
+  margin-top: 12px;
   padding: 10px 12px;
   background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
   border: 1px solid #bfdbfe;
