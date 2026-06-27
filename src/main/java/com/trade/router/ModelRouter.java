@@ -68,13 +68,14 @@ public class ModelRouter {
      * 5. fallbackFor() 确定降级模型
      */
     public RouteDecision route(ModelRouteRequest request) {
-        // 添加调试日志
-        System.out.println("【路由调试】收到请求 - preferredModel: " + request.preferredModel() + ", scenario: " + request.scenario());
+        log.info("[路由决策] 请求场景={}, 首选模型={}, 内容长度={}, 精确模式={}",
+                request.scenario(), request.preferredModel(),
+                request.content() != null ? request.content().length() : 0,
+                request.preciseMode());
 
         Map<ModelProvider, Double> scores = new EnumMap<>(ModelProvider.class);
         for (ModelProvider provider : ModelProvider.values()) {
             if (registry.available(provider).isPresent()) {
-                //对每个可用模型调用 score() 打分
                 scores.put(provider, score(provider, request));
             }
         }
@@ -82,19 +83,17 @@ public class ModelRouter {
             throw new NoAvailableModelException("没有可用模型，请检查 DEEPSEEK_API_KEY 或 BAILIAN_API_KEY 配置");
         }
 
-        System.out.println("【路由调试】可用模型打分: " + scores);
-
         ModelProvider selected = select(request, scores);
-
-        System.out.println("【路由调试】最终选择: " + selected + " (用户指定: " + request.preferredModel() + ")");
-
         ModelProvider fallback = fallbackFor(selected, scores);
-        double score = scores.get(selected);
+
+        log.info("[路由决策] 最终选择={}, 得分={}, 降级模型={}, 原因={}",
+                selected, scores.get(selected), fallback, reason(selected, request));
+
         return new RouteDecision(
                 request.scenario(),
                 selected,
                 fallback,
-                score,
+                scores.get(selected),
                 reason(selected, request),
                 scores
         );
@@ -106,14 +105,11 @@ public class ModelRouter {
      * 技术点：Stream API 的 max 操作 + Comparator，配合 Optional.orElse 提供兜底值。
      */
     private ModelProvider select(ModelRouteRequest request, Map<ModelProvider, Double> scores) {
-        System.out.println("【选择调试】preferredModel=" + request.preferredModel() + ", scores.containsKey=" + scores.containsKey(request.preferredModel()));
-
         if (request.preferredModel() != null && scores.containsKey(request.preferredModel())) {
-            System.out.println("【选择调试】✓ 使用用户指定模型: " + request.preferredModel());
+            log.info("[路由决策] 使用用户指定首选模型: {}", request.preferredModel());
             return request.preferredModel();
         }
 
-        System.out.println("【选择调试】✗ 使用智能路由算法选择最高分模型");
         return scores.entrySet().stream()
                 .max(Comparator.comparingDouble(Map.Entry::getValue))
                 .map(Map.Entry::getKey)
@@ -154,25 +150,40 @@ public class ModelRouter {
     private double score(ModelProvider provider, ModelRouteRequest request) {
         AiGatewayProperties.ModelConfig config = registry.config(provider);
         double score = 50.0 * config.getWeight();
+        StringBuilder breakdown = new StringBuilder();
+        breakdown.append(String.format("基础=%.0f×%.1f", 50.0, config.getWeight()));
+
         String content = normalize(request.content());
         if (request.scenario() == ScenarioType.QA && hasCapability(config, "qa")) {
             score += 10;
+            breakdown.append(" +10(qa能力)");
         }
         if (request.scenario() == ScenarioType.FLOW && hasCapability(config, "process", "planning")) {
             score += 24;
+            breakdown.append(" +24(流程规划)");
         }
         if (content.length() >= properties.getRouting().getLongContextThreshold() && provider == ModelProvider.ALIBABA_BAILIAN) {
             score += 28;
+            breakdown.append(" +28(长文本)");
         }
         if (containsAny(content, PROCESS_KEYWORDS) && provider == ModelProvider.ALIBABA_BAILIAN) {
             score += 18;
+            breakdown.append(" +18(流程关键词)");
         }
         if ((containsAny(content, REASONING_KEYWORDS) || request.preciseMode()) && provider == ModelProvider.DEEPSEEK) {
             score += 22;
+            if (request.preciseMode()) {
+                breakdown.append(" +22(精确模式)");
+            } else {
+                breakdown.append(" +22(推理关键词)");
+            }
         }
         if (provider == properties.getRouting().getDefaultModel()) {
             score += 2;
+            breakdown.append(" +2(默认偏好)");
         }
+
+        log.info("[路由打分] {} = {} {}", provider, score, breakdown);
         return score;
     }
 
