@@ -19,7 +19,10 @@ function updateMetrics(data) {
   score.textContent = data.leadScore ?? "-";
   risk.textContent = data.riskLevel ?? "-";
   intent.textContent = data.buyingIntent ?? "已生成评估";
-  model.textContent = `${data.model || "-"} / ${data.route?.selectedModel || "-"}`;
+  // 同模型不重复显示，不同时说明发生了降级
+  const m = data.model || "-";
+  const r = data.route?.selectedModel;
+  model.textContent = r && m !== r ? `${m}（降级自 ${r}）` : m;
   next.textContent = (data.nextActions || []).slice(0, 2).join("；") || "查看详情";
 }
 
@@ -74,7 +77,9 @@ function initTradeEvents() {
     tasks.textContent = "正在生成销售推进计划...";
     try {
       const data = await postJson("/api/v1/trade/opportunities/sales-plan", payload());
-      model.textContent = `${data.model || "-"} / ${data.route?.selectedModel || "-"}`;
+      const m2 = data.model || "-";
+      const r2 = data.route?.selectedModel;
+      model.textContent = r2 && m2 !== r2 ? `${m2}（降级自 ${r2}）` : m2;
       next.textContent = (data.negotiationPoints || []).slice(0, 2).join("；") || "推进计划已生成";
       renderTasks(data);
     } catch (error) {
@@ -102,17 +107,45 @@ function initTradeEvents() {
       if (!res.ok || !res.body) throw new Error(`${res.status} ${await res.text()}`);
       const reader = res.body.getReader();
       const decoder = new TextDecoder("utf-8");
+      // ⭐ 缓冲区：处理 SSE 分块传输时 data 行可能被截断的情况
+      let buffer = "";
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split(/\r?\n/)) {
+        buffer += decoder.decode(value, { stream: true });
+        // 按行分割，最后一行可能不完整，保留到下次拼接
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop(); // 最后一行不完整，放回缓冲区
+        for (const line of lines) {
           if (!line.startsWith("data:")) continue;
-          const eventData = JSON.parse(line.slice(5));
-          if (eventData.type === "TOKEN") replyBox.textContent += eventData.content;
-          if (eventData.type === "ROUTE") model.textContent = `${eventData.route.selectedModel} / ${eventData.route.fallbackModel || "-"}`;
+          try {
+            const eventData = JSON.parse(line.slice(5));
+            if (eventData.type === "TOKEN") replyBox.textContent += eventData.content;
+            if (eventData.type === "ROUTE") {
+              const sm = eventData.route.selectedModel;
+              const fm = eventData.route.fallbackModel;
+              model.textContent = fm && fm !== sm ? `${sm}（备用 ${fm}）` : sm;
+            }
+          } catch (parseError) {
+            // ⭐ 单条事件解析失败不影响后续事件，仅记录
+            console.warn("SSE 事件解析跳过：", parseError.message, line.slice(0, 100));
+          }
         }
         replyBox.scrollTop = replyBox.scrollHeight;
+      }
+      // 处理流结束后缓冲区中剩余的内容
+      if (buffer.startsWith("data:")) {
+        try {
+          const eventData = JSON.parse(buffer.slice(5));
+          if (eventData.type === "TOKEN") replyBox.textContent += eventData.content;
+          if (eventData.type === "ROUTE") {
+            const sm2 = eventData.route.selectedModel;
+            const fm2 = eventData.route.fallbackModel;
+            model.textContent = fm2 && fm2 !== sm2 ? `${sm2}（备用 ${fm2}）` : sm2;
+          }
+        } catch (parseError) {
+          console.warn("SSE 末尾事件解析跳过：", parseError.message);
+        }
       }
     } catch (error) {
       replyBox.textContent = `生成失败：${error.message}`;

@@ -238,7 +238,7 @@ public class TradeSalesService {
         sb.append("<div class='info-row'><span class='info-label'>缺失信息</span><span class='info-value'>" + missingInformation + "</span></div>");
         sb.append("<div class='info-row'><span class='info-label'>下一步行动</span><span class='info-value'>" + nextActions + "</span></div>");
         sb.append("<div class='info-row'><span class='info-label'>报价建议</span><span class='info-value'>" + pricingAdvice + "</span></div>");
-        sb.append("<div class='info-row'><span class='info-label'>AI 模型</span><span class='info-value'>" + model + " / " + routeInfo + "</span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>AI 模型</span><span class='info-value'>" + formatModelDisplay(model.name(), routeInfo) + "</span></div>");
         sb.append("<div class='info-row'><span class='info-label'>创建时间</span><span class='info-value'>" + createdAt + "</span></div>");
         sb.append("</div>");
         // 底部：AI 评估摘要
@@ -269,7 +269,7 @@ public class TradeSalesService {
         sb.append("<div class='info-row'><span class='info-label'>缺失信息</span><span class='info-value'><span class='info-tag warn'>确认目标价格币种</span><span class='info-tag warn'>确认目的港和贸易条款</span><span class='info-tag warn'>确认是否需要样品</span></span></div>");
         sb.append("<div class='info-row'><span class='info-label'>下一步行动</span><span class='info-value'><span class='info-tag action'>发送规格确认邮件</span><span class='info-tag action'>准备阶梯报价</span><span class='info-tag action'>核查付款与交期风险</span></span></div>");
         sb.append("<div class='info-row'><span class='info-label'>报价建议</span><span class='info-value'>模型输出非严格 JSON，已按外贸销售默认规则生成建议</span></div>");
-        sb.append("<div class='info-row'><span class='info-label'>AI 模型</span><span class='info-value'>" + model + " / " + routeInfo + "</span></div>");
+        sb.append("<div class='info-row'><span class='info-label'>AI 模型</span><span class='info-value'>" + formatModelDisplay(model.name(), routeInfo) + "</span></div>");
         sb.append("<div class='info-row'><span class='info-label'>创建时间</span><span class='info-value'>" + createdAt + "</span></div>");
         sb.append("</div>");
         sb.append("<div class='summary-section'>");
@@ -420,13 +420,225 @@ public class TradeSalesService {
         return Math.max(min, Math.min(max, value));
     }
 
+    /**
+     * 从 AI 输出中提取 JSON 字符串 —— 支持 Markdown 代码块、前后文本包裹、截断修复。
+     *
+     * AI 模型返回的 JSON 可能有多种包裹形式：
+     * 1. 纯 JSON：{"key": "value"}
+     * 2. Markdown 代码块：```json\n{"key": "value"}\n```
+     * 3. 前后文本包裹：以下是分析结果：\n{"key": "value"}\n以上是分析结果
+     * 4. 截断的 JSON：{"key": "value (缺少闭合括号，尝试自动修复)
+     */
     private String extractJson(String content) {
-        int start = content.indexOf('{');
-        int end = content.lastIndexOf('}');
-        if (start >= 0 && end > start) {
-            return content.substring(start, end + 1);
+        if (content == null || content.isBlank()) {
+            return "{}";
         }
-        return content;
+
+        String trimmed = content.trim();
+
+        // 1. 尝试提取 Markdown 代码块 ```json ... ```
+        int codeBlockStart = trimmed.indexOf("```json");
+        if (codeBlockStart >= 0) {
+            int jsonStart = trimmed.indexOf('\n', codeBlockStart);
+            int codeBlockEnd = trimmed.indexOf("```", jsonStart);
+            if (jsonStart >= 0 && codeBlockEnd > jsonStart) {
+                return trimmed.substring(jsonStart + 1, codeBlockEnd).trim();
+            }
+        }
+        // 也尝试 ``` ... ``` (无 json 标记)
+        codeBlockStart = trimmed.indexOf("```");
+        if (codeBlockStart >= 0) {
+            int jsonStart = trimmed.indexOf('\n', codeBlockStart);
+            int codeBlockEnd = trimmed.indexOf("```", jsonStart);
+            if (jsonStart >= 0 && codeBlockEnd > jsonStart) {
+                return trimmed.substring(jsonStart + 1, codeBlockEnd).trim();
+            }
+        }
+
+        // 2. 提取第一个 { 到最后一个 } 的内容
+        int start = trimmed.indexOf('{');
+        int end = trimmed.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            String json = trimmed.substring(start, end + 1);
+            // ⭐ 尝试修复截断的 JSON（缺少闭合引号/括号）
+            return repairTruncatedJson(json);
+        }
+
+        // 3. 兜底：如果内容本身不是 JSON，返回空 JSON 对象
+        //    让 parseAnalysis/parsePlan 走 fallback 分支，返回默认值
+        return "{}";
+    }
+
+    /**
+     * 修复截断的 JSON —— 当 AI 模型输出因 token 限制被截断时，尝试补全闭合。
+     *
+     * 常见截断场景：
+     * - 字符串值被截断：{"summary": "分析结果为 → 补全为 {"summary": "分析结果为"}
+     * - 缺少闭合括号：{"a":1,"b":2 → 补全为 {"a":1,"b":2}
+     * - 数组被截断：["a","b" → 补全为 ["a","b"]
+     */
+    private String repairTruncatedJson(String json) {
+        // 快速检查：如果 JSON 已经完整（以 } 或 ] 结尾），直接返回
+        String trimmed = json.trim();
+        if (trimmed.endsWith("}") || trimmed.endsWith("]")) {
+            // 进一步验证括号是否平衡
+            if (isBracketsBalanced(trimmed)) {
+                return trimmed;
+            }
+        }
+
+        // 修复 1：移除尾部未完成的键值对（如 ,"key": 或 ,"key":"val）
+        // 找到最后一个完整的键值对位置
+        String repaired = trimIncompleteTrailingKey(json);
+
+        // 修复 2：补全闭合引号
+        repaired = repairQuotes(repaired);
+
+        // 修复 3：补全闭合括号
+        repaired = repairBrackets(repaired);
+
+        return repaired;
+    }
+
+    /**
+     * 移除 JSON 末尾不完整的键值对
+     */
+    private String trimIncompleteTrailingKey(String json) {
+        // 找到最后一个 ',' 或 '{' 的位置，确保后面是完整的值
+        // 策略：从末尾向前找 ',' 或 '{'，检查后面是否是完整的 "key":value 对
+        for (int i = json.length() - 1; i >= 0; i--) {
+            char c = json.charAt(i);
+            if (c == ',') {
+                // 检查逗号后面是否有完整的键值对
+                String after = json.substring(i + 1).trim();
+                if (after.isEmpty() || !after.startsWith("\"")) {
+                    // 逗号后面没有完整的键，截断到这里
+                    return json.substring(0, i);
+                }
+                // 检查是否有完整的 "key": value 结构
+                if (isCompleteKeyValue(after)) {
+                    return json;
+                }
+                // 不完整，截断
+                return json.substring(0, i);
+            }
+        }
+        return json;
+    }
+
+    /**
+     * 检查字符串是否是完整的 "key": value 结构
+     */
+    private boolean isCompleteKeyValue(String s) {
+        // 简化检查：以 " 开头，包含 :，且 value 是完整字符串/数字/对象/数组
+        if (!s.startsWith("\"")) return false;
+        int colonIdx = s.indexOf(':');
+        if (colonIdx < 0) return false;
+        String value = s.substring(colonIdx + 1).trim();
+        if (value.isEmpty()) return false;
+        // 字符串值应以 " 开头并以 " 结尾
+        if (value.startsWith("\"")) {
+            return value.endsWith("\"") && value.length() > 1;
+        }
+        // 数字/布尔/null 值
+        return value.matches(".*[0-9true|false|null]\\s*$");
+    }
+
+    /**
+     * 修复未闭合的引号
+     */
+    private String repairQuotes(String json) {
+        int quoteCount = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\' && inString) {
+                escaped = true;
+                continue;
+            }
+            if (c == '"') {
+                inString = !inString;
+                quoteCount++;
+            }
+        }
+        // 如果引号未闭合，补全
+        if (inString) {
+            json = json + "\"";
+        }
+        return json;
+    }
+
+    /**
+     * 修复未闭合的括号
+     */
+    private String repairBrackets(String json) {
+        int braceCount = 0;  // { }
+        int bracketCount = 0; // [ ]
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\' && inString) {
+                escaped = true;
+                continue;
+            }
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (!inString) {
+                if (c == '{') braceCount++;
+                else if (c == '}') braceCount--;
+                else if (c == '[') bracketCount++;
+                else if (c == ']') bracketCount--;
+            }
+        }
+        // 补全闭合括号
+        StringBuilder sb = new StringBuilder(json);
+        for (int i = 0; i < bracketCount; i++) sb.append(']');
+        for (int i = 0; i < braceCount; i++) sb.append('}');
+        return sb.toString();
+    }
+
+    /**
+     * 检查括号是否平衡
+     */
+    private boolean isBracketsBalanced(String json) {
+        int braceCount = 0;
+        int bracketCount = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\' && inString) {
+                escaped = true;
+                continue;
+            }
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (!inString) {
+                if (c == '{') braceCount++;
+                else if (c == '}') braceCount--;
+                else if (c == '[') bracketCount++;
+                else if (c == ']') bracketCount--;
+            }
+        }
+        return braceCount == 0 && bracketCount == 0;
     }
 
     /**
@@ -470,6 +682,14 @@ public class TradeSalesService {
                 blank(request.destinationPort()),
                 request.message()
         );
+    }
+
+    /** 模型显示：相同只显示一个，不同说明发生了降级 */
+    private String formatModelDisplay(String actual, String route) {
+        if (route != null && !route.equals(actual)) {
+            return actual + "（降级自 " + route + "）";
+        }
+        return actual;
     }
 
     /** 空值转默认显示 */
