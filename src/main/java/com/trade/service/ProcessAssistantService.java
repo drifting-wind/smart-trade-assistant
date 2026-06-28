@@ -265,17 +265,153 @@ public class ProcessAssistantService {
     }
 
     /**
-     * 从 AI 原始输出中提取 JSON 片段。
-     * AI 可能在 JSON 前后附加解释文字或 Markdown 代码块标记，
-     * 此方法取第一个 { 到最后一个 } 之间的内容作为候选 JSON。
+     * 从 AI 输出中提取 JSON 字符串 —— 支持 Markdown 代码块、前后文本包裹、截断修复。
+     *
+     * AI 模型返回的 JSON 可能有多种包裹形式：
+     * 1. 纯 JSON：{"key": "value"}
+     * 2. Markdown 代码块：```json\n{"key": "value"}\n```
+     * 3. 前后文本包裹：以下是分析结果：\n{"key": "value"}\n以上是分析结果
+     * 4. 截断的 JSON：{"key": "value (缺少闭合括号，尝试自动修复)
      */
     private String extractJson(String content) {
-        int start = content.indexOf('{');
-        int end = content.lastIndexOf('}');
-        if (start >= 0 && end > start) {
-            return content.substring(start, end + 1);
+        if (content == null || content.isBlank()) {
+            return "{}";
         }
-        return content;
+
+        String trimmed = content.trim();
+
+        // 1. 尝试提取 Markdown 代码块 ```json ... ```
+        int codeBlockStart = trimmed.indexOf("```json");
+        if (codeBlockStart >= 0) {
+            int jsonStart = trimmed.indexOf('\n', codeBlockStart);
+            int codeBlockEnd = trimmed.indexOf("```", jsonStart);
+            if (jsonStart >= 0 && codeBlockEnd > jsonStart) {
+                return trimmed.substring(jsonStart + 1, codeBlockEnd).trim();
+            }
+        }
+        // 也尝试 ``` ... ``` (无 json 标记)
+        codeBlockStart = trimmed.indexOf("```");
+        if (codeBlockStart >= 0) {
+            int jsonStart = trimmed.indexOf('\n', codeBlockStart);
+            int codeBlockEnd = trimmed.indexOf("```", jsonStart);
+            if (jsonStart >= 0 && codeBlockEnd > jsonStart) {
+                return trimmed.substring(jsonStart + 1, codeBlockEnd).trim();
+            }
+        }
+
+        // 2. 提取第一个 { 到最后一个 } 的内容
+        int start = trimmed.indexOf('{');
+        int end = trimmed.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            String json = trimmed.substring(start, end + 1);
+            // 尝试修复截断的 JSON（缺少闭合引号/括号）
+            return repairTruncatedJson(json);
+        }
+
+        // 3. 兜底：返回空 JSON 对象，让 parsePlan 走 fallback 分支
+        return "{}";
+    }
+
+    /**
+     * 修复截断的 JSON —— 当 AI 模型输出因 token 限制被截断时，尝试补全闭合。
+     */
+    private String repairTruncatedJson(String json) {
+        String trimmed = json.trim();
+        if (trimmed.endsWith("}") || trimmed.endsWith("]")) {
+            if (isBracketsBalanced(trimmed)) {
+                return trimmed;
+            }
+        }
+        String repaired = trimIncompleteTrailingKey(json);
+        repaired = repairQuotes(repaired);
+        repaired = repairBrackets(repaired);
+        return repaired;
+    }
+
+    private String trimIncompleteTrailingKey(String json) {
+        for (int i = json.length() - 1; i >= 0; i--) {
+            char c = json.charAt(i);
+            if (c == ',') {
+                String after = json.substring(i + 1).trim();
+                if (after.isEmpty() || !after.startsWith("\"")) {
+                    return json.substring(0, i);
+                }
+                if (isCompleteKeyValue(after)) {
+                    return json;
+                }
+                return json.substring(0, i);
+            }
+        }
+        return json;
+    }
+
+    private boolean isCompleteKeyValue(String s) {
+        if (!s.startsWith("\"")) return false;
+        int colonIdx = s.indexOf(':');
+        if (colonIdx < 0) return false;
+        String value = s.substring(colonIdx + 1).trim();
+        if (value.isEmpty()) return false;
+        if (value.startsWith("\"")) {
+            return value.endsWith("\"") && value.length() > 1;
+        }
+        return value.matches(".*[0-9true|false|null]\\s*$");
+    }
+
+    private String repairQuotes(String json) {
+        int quoteCount = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (escaped) { escaped = false; continue; }
+            if (c == '\\' && inString) { escaped = true; continue; }
+            if (c == '"') { inString = !inString; quoteCount++; }
+        }
+        if (inString) { json = json + "\""; }
+        return json;
+    }
+
+    private String repairBrackets(String json) {
+        int braceCount = 0;
+        int bracketCount = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (escaped) { escaped = false; continue; }
+            if (c == '\\' && inString) { escaped = true; continue; }
+            if (c == '"') { inString = !inString; continue; }
+            if (!inString) {
+                if (c == '{') braceCount++;
+                else if (c == '}') braceCount--;
+                else if (c == '[') bracketCount++;
+                else if (c == ']') bracketCount--;
+            }
+        }
+        StringBuilder sb = new StringBuilder(json);
+        for (int i = 0; i < bracketCount; i++) sb.append(']');
+        for (int i = 0; i < braceCount; i++) sb.append('}');
+        return sb.toString();
+    }
+
+    private boolean isBracketsBalanced(String json) {
+        int braceCount = 0;
+        int bracketCount = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (escaped) { escaped = false; continue; }
+            if (c == '\\' && inString) { escaped = true; continue; }
+            if (c == '"') { inString = !inString; continue; }
+            if (!inString) {
+                if (c == '{') braceCount++;
+                else if (c == '}') braceCount--;
+                else if (c == '[') bracketCount++;
+                else if (c == ']') bracketCount--;
+            }
+        }
+        return braceCount == 0 && bracketCount == 0;
     }
 
     /** 流程名称为空时使用默认名 */

@@ -122,12 +122,15 @@ async function askRag() {
     let hasRelevantInfo = false;
     let citations = [];
     let assistantIndex = -1;
+    let buffer = ""; // ⭐ SSE 分块缓冲区
 
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      for (const line of chunk.split(/\r?\n/)) {
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop(); // 最后一行可能不完整，保留到下次
+      for (const line of lines) {
         if (!line.startsWith("data:")) continue;
         try {
           const eventData = JSON.parse(line.slice(5));
@@ -157,17 +160,25 @@ async function askRag() {
         } catch (e) { /* skip malformed */ }
       }
       removeTypingIndicator();
+      // ⭐ 只在 DONE 事件后才设置 citations，避免流过程中引用先于回答出现
       if (assistantIndex === -1) {
-        ragSession.push({ role: "assistant", content: answer, hasRelevantInfo, citations });
+        ragSession.push({ role: "assistant", content: answer });
         assistantIndex = ragSession.length - 1;
       } else {
-        ragSession[assistantIndex] = { role: "assistant", content: answer, hasRelevantInfo, citations };
+        ragSession[assistantIndex] = { role: "assistant", content: answer };
       }
       renderRagMessages();
       addTypingIndicator();
     }
     removeTypingIndicator();
-    if (!answer) throw new Error("未收到回答");
+    if (!answer) {
+      // ⭐ 回答失败时清除之前推送的空消息
+      if (assistantIndex !== -1) {
+        ragSession.splice(assistantIndex, 1);
+      }
+      throw new Error("未收到回答");
+    }
+    // ⭐ 只在流结束后、有回答时，才添加引用来源
     if (assistantIndex !== -1) {
       ragSession[assistantIndex] = { role: "assistant", content: answer, hasRelevantInfo, citations };
     }

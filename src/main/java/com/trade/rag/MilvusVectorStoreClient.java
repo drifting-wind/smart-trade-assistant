@@ -93,7 +93,8 @@ public class MilvusVectorStoreClient {
             loadCollection();
         } catch (Exception e) {
             log.error("❌ Milvus 初始化失败: {}", e.getMessage(), e);
-            log.warn("⚠️ RAG 功能将不可用，请检查 Milvus 服务是否已启动");
+            // ⭐ 阻止应用启动，避免后续接口 500
+            throw new RuntimeException("Milvus 初始化失败，请检查 Milvus 服务是否已启动", e);
         }
     }
 

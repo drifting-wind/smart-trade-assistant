@@ -59,11 +59,11 @@ public class RerankService {
 
         log.debug("🔄 开始 Rerank: query='{}', candidates={}", query, candidates.size());
 
-        // 构建 Rerank 请求
+        // 构建 Rerank 请求（DashScope API 格式）
         RerankRequest request = new RerankRequest(
                 rerankConfig.getModel(),
-                query,
-                candidates.stream().map(SearchMatch::text).toList()
+                new RerankInput(query, candidates.stream().map(SearchMatch::text).toList()),
+                new RerankParameters(rerankConfig.getTopN() > 0 ? rerankConfig.getTopN() : 5)
         );
 
         String uri = rerankConfig.getBaseUrl() + "/services/rerank/text-rerank";
@@ -127,18 +127,36 @@ public class RerankService {
 
     /**
      * DashScope Rerank 请求体。
+     * 格式: {"model": "gte-rerank", "input": {"query": "...", "documents": [...]}, "parameters": {"top_n": 5}}
      */
     private record RerankRequest(
             String model,
+            @JsonProperty("input") RerankInput input,
+            @JsonProperty("parameters") RerankParameters parameters
+    ) {}
+
+    private record RerankInput(
             String query,
             @JsonProperty("documents") List<String> documents
+    ) {}
+
+    private record RerankParameters(
+            @JsonProperty("top_n") int topN
     ) {}
 
     /**
      * DashScope Rerank 响应体。
      */
     private record RerankResponse(
-            String requestId,
+            @JsonProperty("request_id") String requestId,
+            @JsonProperty("output") RerankOutput output
+    ) {
+        List<RerankResult> results() {
+            return output != null ? output.results() : List.of();
+        }
+    }
+
+    private record RerankOutput(
             @JsonProperty("results") List<RerankResult> results
     ) {}
 
@@ -146,8 +164,12 @@ public class RerankService {
      * Rerank 单条结果。
      */
     private record RerankResult(
-            Integer index,
-            Double score,
-            @JsonProperty("document") String document
+            @JsonProperty("index") Integer index,
+            @JsonProperty("relevance_score") Double score,
+            @JsonProperty("document") RerankDocument document
+    ) {}
+
+    private record RerankDocument(
+            @JsonProperty("text") String text
     ) {}
 }

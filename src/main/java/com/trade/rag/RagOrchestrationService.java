@@ -24,6 +24,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -113,10 +116,24 @@ public class RagOrchestrationService {
                                     log.info("📚 混合检索完成，共 {} 条结果", matches.size());
 
                                     // ⭐ 优化：如果检索结果质量太差，直接返回"未找到"
-                                    if (matches.isEmpty()) {
-//                                        if (matches.isEmpty()||matches.get(0).score() < 0.6) {
+                                    if (matches.isEmpty()||matches.get(0).score() < 0.55) {
+//                                        if (matches.isEmpty()||matches.get(0).score() < 0.55) {
                                         log.info("⚠️ 检索结果质量低于阈值，跳过 LLM 调用");
                                         return Mono.just(ChatResponse.noAnswer(question));
+                                    }
+
+                                    // ⭐ 优化：按产品名过滤，确保回答的是用户问的产品
+                                    List<SearchMatch> filtered = filterByProductName(question, matches);
+                                    if (!filtered.isEmpty()) {
+                                        matches = filtered;
+                                        log.info("📦 按产品名过滤后保留 {} 条结果", matches.size());
+                                    } else if (matches.size() > 1) {
+                                        // ⭐ 兜底：产品名过滤太严格时，尝试按内容关键词匹配
+                                        List<SearchMatch> contentFiltered = filterByContentRelevance(question, matches);
+                                        if (!contentFiltered.isEmpty()) {
+                                            matches = contentFiltered;
+                                            log.info("📦 按内容相关性过滤后保留 {} 条结果", matches.size());
+                                        }
                                     }
 
                                     // 步骤 3: Rerank 重排序
@@ -149,6 +166,20 @@ public class RagOrchestrationService {
         return hybridSearchService.search(request.question(), maxResults)
                 .flatMapMany(matches -> {
                     log.info("📚 混合检索完成，共 {} 条结果", matches.size());
+                    System.err.println("[FILTER-DEBUG] streamWithRetrieval search returned " + matches.size() + " matches");
+
+                    // ⭐ 产品名过滤
+                    String question = request.question();
+                    System.err.println("[FILTER-DEBUG] about to filter, question=" + question + ", matches.size=" + matches.size());
+                    if (matches.size() > 1) {
+                        List<SearchMatch> filtered = filterByProductName(question, matches);
+                        if (!filtered.isEmpty()) {
+                            matches = filtered;
+                        } else {
+                            List<SearchMatch> cf = filterByContentRelevance(question, matches);
+                            if (!cf.isEmpty()) matches = cf;
+                        }
+                    }
 
                     // Rerank 重排序
                     return rerankService.rerank(request.question(), matches)
@@ -173,7 +204,19 @@ public class RagOrchestrationService {
      */
     public Mono<SearchResultDto> search(String query) {
         return hybridSearchService.search(query, maxResults)
-                .flatMap(matches -> rerankService.rerank(query, matches))
+                .flatMap(matches -> {
+                    // ⭐ 产品名过滤
+                    if (matches.size() > 1) {
+                        List<SearchMatch> filtered = filterByProductName(query, matches);
+                        if (!filtered.isEmpty()) {
+                            matches = filtered;
+                        } else {
+                            List<SearchMatch> cf = filterByContentRelevance(query, matches);
+                            if (!cf.isEmpty()) matches = cf;
+                        }
+                    }
+                    return rerankService.rerank(query, matches);
+                })
                 .map(matches -> new SearchResultDto(query, matches, 0));
     }
 
@@ -457,4 +500,176 @@ public class RagOrchestrationService {
             log.warn("⚠️ 写入 RAG 回答缓存失败: {}", e.getMessage());
         }
     }
+
+    /**
+     * 按产品名过滤检索结果 —— 如果问题中提到了具体产品名，只保留该产品的文档。
+     *
+     * 场景：用户问"咖啡杯产品说明书"，检索结果中可能混入"不锈钢水瓶"等相似但不相关的产品。
+     * 此方法提取问题中的产品名，与文档 metadata 中的 title 进行匹配，过滤掉不相关的文档。
+     *
+     * @param question 用户问题
+     * @param matches  检索结果
+     * @return 过滤后的结果，如果没有匹配则返回空列表（调用方应使用原始结果）
+     */
+    private List<SearchMatch> filterByProductName(String question, List<SearchMatch> matches) {
+        System.err.println("[FILTER-DEBUG] filterByProductName called, question=" + question + ", matches=" + matches.size());
+        if (question == null || question.isEmpty() || matches.size() <= 1) {
+            return List.of();
+        }
+
+        // ⭐ 中文无分词边界，用滑动窗口生成所有 2-4 字子串
+        List<String> keywords = new ArrayList<>();
+        for (int len = 4; len >= 2; len--) {
+            for (int i = 0; i <= question.length() - len; i++) {
+                String sub = question.substring(i, i + len);
+                // 只保留纯中文子串
+                if (sub.matches("[\u4e00-\u9fff]+")) {
+                    keywords.add(sub);
+                }
+            }
+        }
+        System.err.println("[FILTER-DEBUG] extracted keywords: " + keywords);
+
+        // ⭐ 对每个文档，计算标题中的关键词匹配数
+        // 只保留匹配数最高的文档（去重不同 chunk 之间的文档）
+        Map<String, Integer> docScores = new LinkedHashMap<>(); // documentId -> score
+        Map<String, String> docTitles = new LinkedHashMap<>(); // documentId -> title
+        
+        for (SearchMatch match : matches) {
+            String title = match.metadata().getOrDefault("title", "").toString();
+            String docId = match.documentId();
+            int score = 0;
+            for (String kw : keywords) {
+                if (title.contains(kw)) score++;
+            }
+            if (score > 0) {
+                docScores.merge(docId, score, Integer::sum); // 累加同文档不同chunk的分数
+                docTitles.putIfAbsent(docId, title);
+            }
+        }
+        
+        System.err.println("[FILTER-DEBUG] docScores: " + docScores);
+        
+        if (docScores.isEmpty()) {
+            System.err.println("[FILTER-DEBUG] no documents matched any keywords");
+            return List.of();
+        }
+        
+        // ⭐ 找到最高分的文档
+        int maxScore = docScores.values().stream().max(Integer::compareTo).orElse(0);
+        System.err.println("[FILTER-DEBUG] maxScore=" + maxScore + ", keeping only docs with max score");
+        
+        // ⭐ 只保留最高分文档的 chunks
+        Set<String> topDocIds = docScores.entrySet().stream()
+                .filter(e -> e.getValue() == maxScore)
+                .map(Map.Entry::getKey)
+                .collect(java.util.stream.Collectors.toSet());
+        
+        List<SearchMatch> filtered = matches.stream()
+                .filter(match -> topDocIds.contains(match.documentId()))
+                .collect(java.util.stream.Collectors.toList());
+
+        log.info("📦 文档级过滤: {} → {} 条 (关键词={}, 最高分={}, 胜出文档={})",
+                matches.size(), filtered.size(), keywords, maxScore, 
+                topDocIds.stream().map(docTitles::get).collect(java.util.stream.Collectors.toList()));
+        return filtered;
+    }
+
+    /**
+     * 从问题中提取产品名 —— 取"产品"或"说明书"前面的名词短语。
+     *
+     * 示例：
+     * - "咖啡杯产品说明书" → "咖啡杯"
+     * - "不锈钢水瓶的规格" → "不锈钢水瓶"
+     * - "LED Panel 60x60" → null（无法提取中文产品名）
+     */
+    /**
+     * 从问题中提取产品名 —— 支持多种问题格式。
+     *
+     * 策略分两级：
+     * 1. 关键词模式匹配："XX产品"、"XX说明书"、"XX的规格"等
+     * 2. 提取所有中文词组作为候选关键词
+     */
+    private String extractProductName(String question) {
+        if (question == null || question.isEmpty()) {
+            return null;
+        }
+
+        // 策略1：关键词模式匹配
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "(.+?)(?:的产品|的说明书|的规格|的参数|产品说明书|产品|说明书|规格|参数)");
+        java.util.regex.Matcher matcher = pattern.matcher(question);
+        if (matcher.find()) {
+            String name = matcher.group(1).trim();
+            name = name.replaceAll("[的是呢吗了有关于]$", "").trim();
+            if (name.length() >= 2 && name.length() <= 20) {
+                return name;
+            }
+        }
+
+        // 策略2：提取所有中文词组（2-8字），返回最长的作为候选产品名
+        java.util.regex.Pattern cnPattern = java.util.regex.Pattern.compile("[\u4e00-\u9fff]{2,8}");
+        java.util.regex.Matcher cnMatcher = cnPattern.matcher(question);
+        List<String> candidates = new ArrayList<>();
+        while (cnMatcher.find()) {
+            candidates.add(cnMatcher.group());
+        }
+        if (!candidates.isEmpty()) {
+            // 返回最长的词组（通常就是产品名）
+            candidates.sort((a, b) -> b.length() - a.length());
+            return candidates.get(0);
+        }
+        return null;
+    }
+
+    /**
+     * 按内容相关性过滤 —— 当产品名过滤太严格时，作为兜底方案。
+     *
+     * 策略：
+     * 1. 从问题中提取关键词（长度>=2的中文词、英文单词）
+     * 2. 对每个文档计算相关性得分（关键词出现次数）
+     * 3. 只保留得分>=2的文档（至少匹配2个关键词）
+     *
+     * 示例：问题"咖啡杯产品说明书"
+     * - 关键词：["咖啡杯", "产品", "说明书"]
+     * - 咖啡杯文档：包含"咖啡杯" → 得分3 → 保留
+     * - 水瓶文档：不包含任何关键词 → 得分0 → 过滤掉
+     */
+    private List<SearchMatch> filterByContentRelevance(String question, List<SearchMatch> matches) {
+        // ⭐ 用 extractProductName 作为必须匹配的关键词（区分产品名和通用词）
+        String productName = extractProductName(question);
+        if (productName == null) {
+            return List.of();
+        }
+
+        // 提取所有中文关键词
+        List<String> keywords = new ArrayList<>();
+        java.util.regex.Pattern cnPattern = java.util.regex.Pattern.compile("[\\u4e00-\\u9fff]{2,8}");
+        java.util.regex.Matcher cnMatcher = cnPattern.matcher(question);
+        while (cnMatcher.find()) {
+            keywords.add(cnMatcher.group());
+        }
+
+        log.info("🔍 产品名={}, 关键词={}", productName, keywords);
+
+        // ⭐ 核心规则：产品名必须命中，且总关键词命中>=2
+        List<SearchMatch> filtered = matches.stream()
+                .filter(match -> {
+                    String text = match.text().toLowerCase();
+                    if (!text.contains(productName)) {
+                        return false; // 产品名不匹配直接排除
+                    }
+                    int score = 0;
+                    for (String kw : keywords) {
+                        if (text.contains(kw)) score++;
+                    }
+                    log.debug("  检查: score={}, text前50字='{}'", score, text.substring(0, Math.min(50, text.length())));
+                    return score >= 2;
+                })
+                .collect(java.util.stream.Collectors.toList());
+
+        log.info("📦 内容相关性过滤: {} → {} 条", matches.size(), filtered.size());
+        return filtered;
+    }
+
 }

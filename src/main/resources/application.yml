@@ -170,20 +170,20 @@ ai:
       vector-store-type: milvus
       # 集合名称
       collection-name: trade_knowledge
-      # 向量维度（需与 Embedding 模型输出维度一致，DeepSeek text-embedding-3-small 输出 1536 维）
-      dimension: 1536
+      # 向量维度（需与 Embedding 模型输出维度一致，DashScope text-embedding-v4 默认 1024 维）
+      dimension: 1024
       # 最大返回结果数（⭐ 优化：从10减少到5，减少冗余上下文）
       max-results: 5
-      # 相似度阈值（⭐ 优化：从0.5提高到0.7，只保留高相似度结果）
-      similarity-threshold: 0.5
+      # 相似度阈值（⭐ 优化：从0.5提高到0.6，只保留高相似度结果）
+      similarity-threshold: 0.6
       # 文本分块配置
       chunk-size: 200      # 每块字符数      若是：结构化文档 200 ~ 400 汉字（别超过 400）
       chunk-overlap: 35    # 块间重叠字符数   仅用来防语义截断，不要过大
 
       # Embedding 配置 —— 主模型 + 降级模型
       embedding:
-        # 主模型：阿里巴巴 DashScope text-embedding-v2（⭐ 1536 维，无需额外参数）
-        model: text-embedding-v2
+        # 主模型：阿里巴巴 DashScope text-embedding-v4（⭐ 1024 维，多语言/长文本语义更强）
+        model: text-embedding-v4
         # Embedding API 基础 URL（DashScope 兼容 OpenAI /v1/embeddings）
         base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
         # Embedding API 路径
@@ -196,15 +196,15 @@ ai:
         timeout: 30s
         # 重试次数：2 次
         max-retries: 2
-        # 单价：0.02 元/百万 token（DashScope text-embedding-v2 官方价格）
-        price-per-million-tokens: 0.02
+        # 单价：0.05 元/百万 token（DashScope text-embedding-v4 官方价格）
+        price-per-million-tokens: 0.05
         # 月度预算：100 元
         monthly-budget: 100.0
 
-      # 降级 Embedding 配置 —— DashScope text-embedding-v2（同一供应商，兼容性更好）
+      # 降级 Embedding 配置 —— DashScope text-embedding-v3（同一供应商，兼容性更好）
       fallback-embedding:
-        # 降级模型：DashScope text-embedding-v2（1536维，价格更便宜）
-        model: text-embedding-v2
+        # 降级模型：DashScope text-embedding-v3（1024维，多语言语义增强）
+        model: text-embedding-v3
         # DashScope API 地址（与主模型相同）
         base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
         # Embedding API 路径
@@ -217,8 +217,8 @@ ai:
         timeout: 30s
         # 重试次数：2 次
         max-retries: 2
-        # 降级模型单价：0.01 元/百万 token（DashScope text-embedding-v2 官方价格）
-        price-per-million-tokens: 10.0
+        # 降级模型单价：0.05 元/百万 token（DashScope text-embedding-v4 官方价格）
+        price-per-million-tokens: 0.05
 
       # 健康检查配置 —— 定期检查 Embedding 服务可用性
       health-check:
@@ -271,13 +271,15 @@ ai:
         # 是否启用 Rerank
         enabled: true
         # Rerank 模型
-        model: text-rerank-v2
+        model: qwen3-rerank
         # DashScope Rerank API 基础 URL
         base-url: https://dashscope.aliyuncs.com/api/v1
         # API 密钥
         api-key: ${DASHSCOPE_API_KEY}
         # 重排序后取 Top-K（⭐ 优化：从10减少到3，只保留最相关的3条）
         top-k: 10
+        # DashScope Rerank API top_n 参数
+        top-n: 5
 
     # 模型列表配置
     models:
@@ -329,7 +331,6 @@ ai:
         # 模型能力：问答、长文本、流程、规划、写作
         capabilities: qa,long_context,process,planning,writing
 
-# MinIO 对象存储配置
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
