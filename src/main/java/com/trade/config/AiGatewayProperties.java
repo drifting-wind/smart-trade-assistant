@@ -511,7 +511,7 @@ public class AiGatewayProperties {
      * 核心流程：
      * 1. 文档上传 → LangChain4j 解析 PDF/DOCX → 纯文本
      * 2. 文本分块（Chunking）→ 每块约 500 字符，重叠 50 字符
-     * 3. 调用 Embedding 模型 → 文本转为 1536 维向量
+     * 3. 调用 Embedding 模型 → 文本转为 1024 维向量
      * 4. 写入 Milvus 向量数据库 → 建立 IVF_FLAT 索引
      * 5. 检索时：问题 → Embedding → Milvus 相似度搜索 → Top-K 相关片段
      */
@@ -523,10 +523,10 @@ public class AiGatewayProperties {
         private String collectionName = "trade_knowledge";
 
         /** Embedding 向量维度，需与 Embedding 模型输出维度一致。
-         *  DashScope text-embedding-v3 默认 1024（需显式指定 output_dimension=1536），OpenAI text-embedding-3-small 默认 1536 */
+         *  DashScope text-embedding-v4 默认 1024，OpenAI text-embedding-3-small 默认 1536 */
         @Min(1)
         @Max(8192)
-        private int dimension = 1536;
+        private int dimension = 1024;
 
         /** 单次检索返回的最大文档片段数（Top-K） */
         @Min(1)
@@ -718,6 +718,7 @@ public class AiGatewayProperties {
             /**
              * ⭐ 输出向量维度（可选）
              * DashScope text-embedding-v3 默认输出 1024 维，但可通过此字段指定为 1536
+             * DashScope text-embedding-v4 默认输出 1024 维（支持 256/512/1024/2048）
              * 必须与 Milvus 集合的 dimension 配置一致
              */
             private Integer outputDimension;
@@ -1069,7 +1070,7 @@ public class AiGatewayProperties {
             private boolean enabled = false;
 
             /** Rerank 模型名称 */
-            private String model = "text-rerank-v2";
+            private String model = "qwen3-rerank";
 
             /** DashScope Rerank API 基础 URL */
             private String baseUrl = "https://dashscope.aliyuncs.com/api/v1";
@@ -1082,6 +1083,11 @@ public class AiGatewayProperties {
             @Max(50)
             private int topK = 10;
 
+            /** DashScope Rerank API top_n 参数（返回前 N 条相关文档） */
+            @Min(1)
+            @Max(50)
+            private int topN = 5;
+
             public boolean isEnabled() { return enabled; }
             public void setEnabled(boolean enabled) { this.enabled = enabled; }
             public String getModel() { return model; }
@@ -1092,6 +1098,8 @@ public class AiGatewayProperties {
             public void setApiKey(String apiKey) { this.apiKey = apiKey; }
             public int getTopK() { return topK; }
             public void setTopK(int topK) { this.topK = topK; }
+            public int getTopN() { return topN; }
+            public void setTopN(int topN) { this.topN = topN; }
         }
     }
 }
