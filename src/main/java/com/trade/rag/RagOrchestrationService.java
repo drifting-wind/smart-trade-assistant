@@ -210,6 +210,16 @@ public class RagOrchestrationService {
                                         return rerankService.rerank(question, matches)
                                                 .flatMapMany(reranked -> {
                                                     log.info("🔄 Rerank 完成，最终 {} 条结果", reranked.size());
+                                                    // 如果检索结果质量太差，返回"未找到相关信息"
+                                                    if (reranked.isEmpty() || reranked.get(0).score() < 0.55) {
+                                                        log.info("⚠️ 检索结果质量低于阈值，跳过 AI 调用");
+                                                        String eventId = UUID.randomUUID().toString();
+                                                        return Flux.concat(
+                                                                Mono.just(AiStreamEvent.token(eventId, null,
+                                                                        "参考资料中未找到相关信息，请尝试换个问题或上传更多文档。")),
+                                                                Mono.just(AiStreamEvent.done(eventId, null, false, List.of()))
+                                                        );
+                                                    }
                                                     return streamWithMatches(request, reranked);
                                                 });
                                     })
@@ -224,10 +234,14 @@ public class RagOrchestrationService {
                                         }
                                     })
                                     // 流完整结束后（成功/取消/异常），写入 Redis 缓存
+                                    // 注意：未找到相关信息的回答不缓存
                                     .doFinally(signal -> {
                                         if (signal == reactor.core.publisher.SignalType.ON_COMPLETE) {
                                             String fullAnswer = answerBuf[0].toString();
-                                            if (!fullAnswer.isBlank()) {
+                                            // 不缓存"未找到相关信息"的回答
+                                            if (!fullAnswer.isBlank()
+                                                    && !fullAnswer.contains("未找到相关信息")
+                                                    && hasRelevant[0]) {
                                                 ChatResponse toCache = new ChatResponse(
                                                         UUID.randomUUID().toString(),
                                                         request.conversationId(),
@@ -238,6 +252,8 @@ public class RagOrchestrationService {
                                                 );
                                                 saveRagAnswerToCache(cacheKey, toCache);
                                                 log.info("✅ RAG 回答已写入缓存, TTL: 24h");
+                                            } else if (!fullAnswer.isBlank()) {
+                                                log.info("⚠️ 未找到相关信息，不写入缓存");
                                             }
                                         }
                                     });
