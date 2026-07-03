@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.List;
 import java.util.UUID;
 import java.util.Set;
@@ -538,9 +539,31 @@ public class RagOrchestrationService {
                         if (answer != null && !answer.isBlank()) {
                             Object hasRelevant = map.get("hasRelevantInfo");
                             boolean hasRel = hasRelevant instanceof Boolean ? (Boolean) hasRelevant : false;
-                            Object citations = map.get("citations");
-                            java.util.List<Citation> citationList = citations instanceof java.util.List
-                                    ? (java.util.List<Citation>) citations : java.util.List.of();
+                            // 将citations从List<Map>转换为List<Citation>
+                            Object citationsObj = map.get("citations");
+                            java.util.List<Citation> citationList = java.util.List.of();
+                            if (citationsObj instanceof java.util.List) {
+                                java.util.List<?> rawList = (java.util.List<?>) citationsObj;
+                                citationList = rawList.stream()
+                                        .filter(Objects::nonNull)
+                                        .map(item -> {
+                                            if (item instanceof Citation) {
+                                                return (Citation) item;
+                                            } else if (item instanceof java.util.Map) {
+                                                // 使用Jackson转换Map为Citation
+                                                try {
+                                                    return new com.fasterxml.jackson.databind.ObjectMapper()
+                                                            .convertValue(item, Citation.class);
+                                                } catch (Exception e2) {
+                                                    log.warn("⚠️ Citation转换失败: {}", e2.getMessage());
+                                                    return null;
+                                                }
+                                            }
+                                            return null;
+                                        })
+                                        .filter(Objects::nonNull)
+                                        .collect(java.util.stream.Collectors.toList());
+                            }
                             return Mono.just(new ChatResponse(
                                     java.util.UUID.randomUUID().toString(),
                                     null, null, answer, null, null,
@@ -548,7 +571,7 @@ public class RagOrchestrationService {
                             ));
                         }
                     } catch (Exception e) {
-                        log.warn("⚠️ Map 转换失败: {}", e.getMessage());
+                        log.warn("⚠️ Map 转换失败: {}", e.getMessage(), e);
                     }
                 } else {
                     log.warn("⚠️ 未知缓存类型: {}", cached.getClass().getName());
