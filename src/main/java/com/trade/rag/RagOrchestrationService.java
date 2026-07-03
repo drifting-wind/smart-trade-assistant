@@ -167,14 +167,20 @@ public class RagOrchestrationService {
         String question = request.question();
         String cacheKey = generateRagCacheKey(question);
 
-        // 先查缓存，命中则直接返回缓存结果
+        // 先查缓存，命中则分块流式返回缓存结果（打字机效果，速度比真实 LLM 快）
         return getRagAnswerFromCache(cacheKey)
                 .filter(cached -> cached.answer() != null && !cached.answer().isBlank())
                 .flatMapMany(cached -> {
-                    log.info("✅ RAG 回答缓存命中，直接返回缓存");
+                    log.info("✅ RAG 回答缓存命中，分块流式输出（打字机效果）");
                     String eventId = UUID.randomUUID().toString();
+                    // 将答案按每 2 个字符切分，模拟流式输出（比真实 LLM 快，仍有打字机感）
+                    List<String> chunks = splitIntoChunks(cached.answer(), 2);
+                    Flux<AiStreamEvent> tokenFlux = Flux.fromIterable(chunks)
+                            .delayElements(java.time.Duration.ofMillis(30))
+                            .map(chunk -> AiStreamEvent.token(eventId, null, chunk));
                     return Flux.concat(
-                            Mono.just(AiStreamEvent.token(eventId, null, cached.answer())),
+                            tokenFlux,
+                            Mono.just(AiStreamEvent.citations(eventId, cached.citations())),
                             Mono.just(AiStreamEvent.done(eventId, null, cached.hasRelevantInfo(), cached.citations()))
                     );
                 })
@@ -486,6 +492,21 @@ public class RagOrchestrationService {
             ));
         }
         return citations;
+    }
+
+    /**
+     * 将文本按指定大小分块 —— 用于缓存命中时的流式输出。
+     *
+     * @param text      原始文本
+     * @param chunkSize 每块字符数
+     * @return 分块后的列表
+     */
+    private static List<String> splitIntoChunks(String text, int chunkSize) {
+        List<String> chunks = new ArrayList<>();
+        for (int i = 0; i < text.length(); i += chunkSize) {
+            chunks.add(text.substring(i, Math.min(i + chunkSize, text.length())));
+        }
+        return chunks;
     }
 
     /**
