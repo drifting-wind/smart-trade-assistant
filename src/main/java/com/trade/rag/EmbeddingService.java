@@ -23,6 +23,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Embedding 服务 —— 调用 OpenAI 兼容的 /v1/embeddings 接口，将文本转换为向量。
@@ -255,8 +256,8 @@ public class EmbeddingService {
     /**
      * 批量将多条文本转换为向量（生产级实现）
      *
-     * 优势：减少 HTTP 请求次数，提升吞吐量。
-     * 注意：Embedding API 通常支持批量输入，但单次请求有 token 限制。
+     * 优化：优先从 Redis 缓存获取，仅对缓存未命中的文本调用 API，
+     *       新获取的向量自动写入缓存，避免重复计费。
      *
      * @param texts 要转换的文本列表
      * @return 向量列表，顺序与输入一致
@@ -268,24 +269,20 @@ public class EmbeddingService {
 
         Timer.Sample sample = Timer.start(meterRegistry);
 
-        // 分批处理，每批最多 8 条（避免超过 API token 限制）
-        int batchSize = 8;
-        List<Mono<List<float[]>>> batchMonos = new ArrayList<>();
+        // 对每条文本：先查缓存，未命中再调用 API
+        List<Mono<float[]>> embeddingMonos = texts.stream()
+                .map(this::embed)  // embed() 内部已包含 getFromCache + saveToCache
+                .collect(Collectors.toList());
 
-        for (int i = 0; i < texts.size(); i += batchSize) {
-            List<String> batch = texts.subList(i, Math.min(i + batchSize, texts.size()));
-            batchMonos.add(embedBatchWithFallback(batch));
-        }
-
-        return Mono.zip(batchMonos, results -> {
+        return Mono.zip(embeddingMonos, results -> {
             List<float[]> allEmbeddings = new ArrayList<>();
             for (Object result : results) {
-                allEmbeddings.addAll((List<float[]>) result);
+                allEmbeddings.add((float[]) result);
             }
             return allEmbeddings;
         }).doOnSuccess(embeddings -> {
             sample.stop(Timer.builder("embedding.embedAll")
-                    .tag("batchCount", String.valueOf(batchMonos.size()))
+                    .tag("cacheOptimized", "true")
                     .tag("totalTexts", String.valueOf(texts.size()))
                     .register(meterRegistry));
         });
