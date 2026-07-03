@@ -95,18 +95,15 @@ public class HybridSearchService {
                 });
 
         return Mono.zip(vectorMono, bm25Mono)
-                .map(tuple -> {
+                .flatMap(tuple -> {
                     List<SearchMatch> vectorResults = tuple.getT1();
                     List<SearchMatch> bm25Results = tuple.getT2();
 
                     log.debug("📊 混合检索中间结果: 向量 {} 条, BM25 {} 条",
                             vectorResults.size(), bm25Results.size());
 
-                    // RRF 融合
-                    List<SearchMatch> fused = rrfFuse(vectorResults, bm25Results, topK, vectorWeight, bm25Weight);
-
-                    log.info("✅ 混合检索完成: 融合后 {} 条结果", fused.size());
-                    return fused;
+                    // RRF 融合（返回 Mono，内部可能异步补充 metadata）
+                    return rrfFuse(vectorResults, bm25Results, topK, vectorWeight, bm25Weight);
                 });
     }
 
@@ -154,7 +151,7 @@ public class HybridSearchService {
      * @param bm25Weight     BM25 权重
      * @return 融合后的结果
      */
-    private List<SearchMatch> rrfFuse(
+    private Mono<List<SearchMatch>> rrfFuse(
             List<SearchMatch> vectorResults,
             List<SearchMatch> bm25Results,
             int topK,
@@ -205,12 +202,14 @@ public class HybridSearchService {
                 ))
                 .collect(Collectors.toList());
 
+        log.info("✅ 混合检索完成: 融合后 {} 条结果", results.size());
+
         // 如果结果中的 metadata 为空，从 Milvus 中获取 metadata
         if (results.stream().anyMatch(m -> m.metadata().isEmpty())) {
-            return enrichMetadataFromMilvus(results).block();
+            return enrichMetadataFromMilvus(results);
         }
 
-        return results;
+        return Mono.just(results);
     }
 
     /**

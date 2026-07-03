@@ -131,18 +131,18 @@ public class RagController {
     public Mono<org.springframework.http.ResponseEntity<org.springframework.core.io.buffer.DataBuffer>> previewDocument(
             @PathVariable String documentId) {
         return ingestionService.getOriginalFile(documentId)
-                .map(bytes -> {
-                    String fileName = getFileName(documentId);
-                    String contentType = getContentType(fileName);
+                .flatMap(bytes -> getFileName(documentId)
+                        .map(fileName -> {
+                            String contentType = getContentType(fileName);
 
-                    org.springframework.core.io.buffer.DataBuffer buffer =
-                            new org.springframework.core.io.buffer.DefaultDataBufferFactory().wrap(bytes);
+                            org.springframework.core.io.buffer.DataBuffer buffer =
+                                    new org.springframework.core.io.buffer.DefaultDataBufferFactory().wrap(bytes);
 
-                    return org.springframework.http.ResponseEntity.ok()
-                            .header("Content-Type", contentType)
-                            .header("Content-Disposition", "inline; filename=\"" + fileName + "\"")
-                            .body(buffer);
-                })
+                            return org.springframework.http.ResponseEntity.ok()
+                                    .header("Content-Type", contentType)
+                                    .header("Content-Disposition", "inline; filename=\"" + fileName + "\"")
+                                    .body(buffer);
+                        }))
                 .defaultIfEmpty(org.springframework.http.ResponseEntity.notFound().build());
     }
 
@@ -159,32 +159,34 @@ public class RagController {
     public Mono<org.springframework.http.ResponseEntity<org.springframework.core.io.buffer.DataBuffer>> downloadDocument(
             @PathVariable String documentId) {
         return ingestionService.getOriginalFile(documentId)
-                .map(bytes -> {
-                    String fileName = getFileName(documentId);
-                    String contentType = "application/octet-stream";
+                .flatMap(bytes -> getFileName(documentId)
+                        .map(fileName -> {
+                            String contentType = "application/octet-stream";
 
-                    org.springframework.core.io.buffer.DataBuffer buffer =
-                            new org.springframework.core.io.buffer.DefaultDataBufferFactory().wrap(bytes);
+                            org.springframework.core.io.buffer.DataBuffer buffer =
+                                    new org.springframework.core.io.buffer.DefaultDataBufferFactory().wrap(bytes);
 
-                    return org.springframework.http.ResponseEntity.ok()
-                            .header("Content-Type", contentType)
-                            .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
-                            .body(buffer);
-                })
+                            return org.springframework.http.ResponseEntity.ok()
+                                    .header("Content-Type", contentType)
+                                    .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
+                                    .body(buffer);
+                        }))
                 .defaultIfEmpty(org.springframework.http.ResponseEntity.notFound().build());
     }
 
     /**
-     * 获取文件名（从 MinIO 中获取）
+     * 获取文件名（从 Milvus 元数据中获取原始文件名）
      */
-    private String getFileName(String documentId) {
-        // 从 Milvus 元数据中获取原始文件名
-        var docInfo = ingestionService.getDocumentInfo(documentId).block();
-        if (docInfo != null && docInfo.metadata() != null) {
-            Object fileName = docInfo.metadata().get("originalFileName");
-            if (fileName != null) return fileName.toString();
-        }
-        return "document";
+    private Mono<String> getFileName(String documentId) {
+        return ingestionService.getDocumentInfo(documentId)
+                .map(docInfo -> {
+                    if (docInfo != null && docInfo.metadata() != null) {
+                        Object fileName = docInfo.metadata().get("originalFileName");
+                        if (fileName != null) return fileName.toString();
+                    }
+                    return "document";
+                })
+                .defaultIfEmpty("document");
     }
 
     /**

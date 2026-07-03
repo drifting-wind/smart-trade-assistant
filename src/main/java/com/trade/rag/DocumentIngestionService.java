@@ -408,72 +408,69 @@ public class DocumentIngestionService {
      * 核心摄入逻辑 —— 文本 → 分块 → Embedding → Milvus。
      */
     private Mono<DocumentUploadResponse> ingestText(String documentId, String text, DocumentUploadRequest request, String originalFileName) {
-        return Mono.fromCallable(() -> {
-            log.info("📄 开始摄入文档: {}, 文本长度: {} 字符", documentId, text.length());
+        return Mono.fromCallable(() -> chunkText(text))
+                .subscribeOn(Schedulers.boundedElastic())
+                .doOnNext(chunks -> log.info("📄 开始摄入文档: {}, 文本长度: {} 字符", documentId, text.length()))
+                .flatMap(chunks -> {
+                    log.info("✂️ 分块完成: {} 块", chunks.size());
+                    if (chunks.isEmpty()) {
+                        throw new VectorStoreException("文本分块后为空，请检查内容");
+                    }
+                    // 步骤 2: Embedding
+                    return embeddingService.embedAll(chunks)
+                            .subscribeOn(Schedulers.boundedElastic())
+                            .flatMap(embeddings -> {
+                                log.info("🧮 Embedding 完成: {} 个向量", embeddings.size());
+                                // 步骤 3: 构建 Milvus 行数据
+                                List<Map<String, Object>> rows = buildRows(documentId, chunks, embeddings, request, originalFileName);
+                                // 步骤 4: 写入 Milvus
+                                return vectorStoreClient.insert(rows)
+                                        .subscribeOn(Schedulers.boundedElastic())
+                                        .map(inserted -> {
+                                            // 步骤 5: 提交 BM25 索引，确保对搜索可见
+                                            bm25IndexService.commit();
+                                            log.info("✅ 文档摄入完成: {}", documentId);
+                                            return new DocumentUploadResponse(
+                                                    documentId, request.title(), chunks.size(),
+                                                    "success", null, request.metadata(), Instant.now()
+                                            );
+                                        });
+                            });
+                })
+                .onErrorMap(e -> new VectorStoreException("文档摄入失败: " + e.getMessage(), e));
+    }
 
-            // 步骤 1: 分块
-            List<String> chunks = chunkText(text);
-            log.info("✂️ 分块完成: {} 块", chunks.size());
+    /**
+     * 构建 Milvus 行数据 —— 将 chunks + embeddings + 元数据组合为 Milvus 插入格式。
+     */
+    private List<Map<String, Object>> buildRows(String documentId, List<String> chunks,
+                                                 List<float[]> embeddings, DocumentUploadRequest request,
+                                                 String originalFileName) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (int i = 0; i < chunks.size(); i++) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("document_id", documentId);
+            row.put("chunk_index", i);
+            row.put("text", chunks.get(i));
+            row.put("embedding", embeddings.get(i));
 
-            if (chunks.isEmpty()) {
-                throw new VectorStoreException("文本分块后为空，请检查内容");
+            // 构建元数据
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("title", request.title());
+            metadata.put("content_type", request.contentType());
+            metadata.put("created_at", Instant.now().toString());
+            metadata.put("originalFileName", originalFileName);
+            if (request.metadata() != null) {
+                metadata.putAll(request.metadata());
             }
+            row.put("metadata", metadata);
 
-            // 步骤 2: Embedding
-            List<float[]> embeddings = embeddingService.embedAll(chunks)
-                    .subscribeOn(Schedulers.boundedElastic())
-                    .block(); // 阻塞等待结果（在 boundedElastic 上）
+            rows.add(row);
 
-            log.info("🧮 Embedding 完成: {} 个向量", embeddings.size());
-
-            // 步骤 3: 构建 Milvus 行数据
-            List<Map<String, Object>> rows = new ArrayList<>();
-            for (int i = 0; i < chunks.size(); i++) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("document_id", documentId);
-                row.put("chunk_index", i);
-                row.put("text", chunks.get(i));
-                row.put("embedding", embeddings.get(i));
-
-                // 构建元数据
-                Map<String, Object> metadata = new HashMap<>();
-                metadata.put("title", request.title());
-                metadata.put("content_type", request.contentType());
-                metadata.put("created_at", Instant.now().toString());
-                metadata.put("originalFileName", originalFileName); // 保存原始文件名
-                if (request.metadata() != null) {
-                    metadata.putAll(request.metadata());
-                }
-                row.put("metadata", metadata);
-
-                rows.add(row);
-
-                // 步骤 3.5: 同步更新 BM25 索引
-                bm25IndexService.addChunk(documentId, i, chunks.get(i));
-            }
-
-            // 步骤 4: 写入 Milvus
-            vectorStoreClient.insert(rows)
-                    .subscribeOn(Schedulers.boundedElastic())
-                    .block();
-
-            // 步骤 5: 提交 BM25 索引，确保对搜索可见
-            bm25IndexService.commit();
-
-            log.info("✅ 文档摄入完成: {}", documentId);
-
-            return new DocumentUploadResponse(
-                    documentId,
-                    request.title(),
-                    chunks.size(),
-                    "success",
-                    null,
-                    request.metadata(),
-                    Instant.now()
-            );
-        })
-        .subscribeOn(Schedulers.boundedElastic())
-        .onErrorMap(e -> new VectorStoreException("文档摄入失败: " + e.getMessage(), e));
+            // 同步更新 BM25 索引
+            bm25IndexService.addChunk(documentId, i, chunks.get(i));
+        }
+        return rows;
     }
 
     /**

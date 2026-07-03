@@ -479,7 +479,6 @@ public class MilvusVectorStoreClient {
         return 0;
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> getMetadataValue(RowRecord record, String fieldName) {
         Object value = record.get(fieldName);
         log.debug("🔍 获取元数据: fieldName={}, value={}, type={}", fieldName, value,
@@ -488,10 +487,12 @@ public class MilvusVectorStoreClient {
             log.debug("🔍 元数据为 null，返回空 Map");
             return Collections.emptyMap();
         }
-        // 如果已经是 Map，直接返回
+        // 如果已经是 Map，直接返回（已通过 instanceof Map 检查，安全转换为参数化类型）
         if (value instanceof Map) {
             log.debug("🔍 元数据是 Map: {}", value);
-            return (Map<String, Object>) value;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> typedValue = (Map<String, Object>) value;
+            return typedValue;
         }
         // 如果是 JsonObject（Milvus SDK 返回类型），转换为 Map
         if (value instanceof com.google.gson.JsonObject) {

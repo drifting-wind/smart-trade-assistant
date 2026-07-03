@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
+import com.trade.service.PromptFactory;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,19 +56,23 @@ public class TradeSalesService {
     private final ObjectMapper objectMapper;
     /** 指标埋点 */
     private final AiMetrics metrics;
+    /** 系统提示词工厂 */
+    private final PromptFactory promptFactory;
 
     public TradeSalesService(
             ModelRouter modelRouter,
             RouteMapper routeMapper,
             ModelRegistry modelRegistry,
             ObjectMapper objectMapper,
-            AiMetrics metrics
+            AiMetrics metrics,
+            PromptFactory promptFactory
     ) {
         this.modelRouter = modelRouter;
         this.routeMapper = routeMapper;
         this.modelRegistry = modelRegistry;
         this.objectMapper = objectMapper;
         this.metrics = metrics;
+        this.promptFactory = promptFactory;
     }
 
     /**
@@ -78,7 +82,7 @@ public class TradeSalesService {
      * 场景为 QA，开启精确模式（需要 DeepSeek 的推理能力做分析）。
      */
     public Mono<OpportunityAnalysisResponse> analyze(TradeInquiryRequest request) {
-        AiPromptRequest prompt = prompt(request, ScenarioType.QA, analysisSystemPrompt(), inquiryContent(request));
+        AiPromptRequest prompt = prompt(request, ScenarioType.QA, promptFactory.tradeAnalysisSystemPrompt(), inquiryContent(request));
         RouteDecision route = route(prompt, request.preferredModel(), true);
         return invokeWithFallback(prompt, route)
                 .map(response -> parseAnalysis(prompt, request, route, response));
@@ -91,7 +95,7 @@ public class TradeSalesService {
      * 场景为 FLOW，关闭精确模式（流程规划不需要代码级精确）。
      */
     public Mono<SalesPlanResponse> salesPlan(TradeInquiryRequest request) {
-        AiPromptRequest prompt = prompt(request, ScenarioType.FLOW, planSystemPrompt(), inquiryContent(request));
+        AiPromptRequest prompt = prompt(request, ScenarioType.FLOW, promptFactory.tradePlanSystemPrompt(), inquiryContent(request));
         RouteDecision route = route(prompt, request.preferredModel(), false);
         return invokeWithFallback(prompt, route)
                 .map(response -> parsePlan(prompt, request, route, response));
@@ -102,7 +106,7 @@ public class TradeSalesService {
      * 场景为 QA，开启精确模式。
      */
     public Flux<AiStreamEvent> streamCustomerReply(TradeInquiryRequest request) {
-        AiPromptRequest prompt = prompt(request, ScenarioType.QA, replySystemPrompt(), inquiryContent(request));
+        AiPromptRequest prompt = prompt(request, ScenarioType.QA, promptFactory.tradeReplySystemPrompt(), inquiryContent(request));
         RouteDecision route = route(prompt, request.preferredModel(), true);
         String eventId = UUID.randomUUID().toString();
         Flux<AiStreamEvent> tokens = modelRegistry.require(route.selectedModel()).stream(prompt)
@@ -697,67 +701,4 @@ public class TradeSalesService {
         return value == null || value.isBlank() ? "未提供" : value;
     }
 
-    /**
-     * 商机分析 System Prompt —— 定义 AI 作为"外贸销售运营经理"的行为。
-     * 要求 AI 输出 JSON，包含 leadScore(0-100)、riskLevel、buyingIntent 等字段。
-     * 评分维度：数量、目标价、国家风险、信息完整度、采购意图、报价可行性。
-     */
-    private String analysisSystemPrompt() {
-        return """
-                你是资深外贸销售运营经理。请基于客户询盘做商机分析，只输出 JSON，不要 Markdown。
-                JSON 结构：
-                {
-                  "leadScore": 0到100的整数,
-                  "riskLevel": "LOW|MEDIUM|HIGH",
-                  "buyingIntent": "HIGH_INTENT|PRICE_SHOPPING|NEEDS_FOLLOW_UP|LOW_FIT",
-                  "summary": "商机摘要",
-                  "recommendedProducts": ["建议主推产品或规格"],
-                  "missingInformation": ["必须补充的信息"],
-                  "nextActions": ["下一步销售动作"],
-                  "pricingAdvice": "报价建议"
-                }
-                评分要结合数量、目标价、国家风险、信息完整度、采购意图和报价可行性。
-                """;
-    }
-
-    /**
-     * 销售计划 System Prompt —— 定义 AI 将询盘转化为可执行销售推进计划的行为。
-     * 要求 AI 输出 JSON，包含 tasks、negotiationPoints、requiredDocuments、monitoringSignals。
-     * 计划需覆盖：询盘澄清 → 报价 → 样品 → PI → 付款 → 生产交期 → 物流风险。
-     */
-    private String planSystemPrompt() {
-        return """
-                你是外贸销售流程负责人。请把询盘转化为可执行销售推进计划，只输出 JSON，不要 Markdown。
-                JSON 结构：
-                {
-                  "planSummary": "推进计划摘要",
-                  "tasks": [
-                    {
-                      "order": 1,
-                      "name": "任务名称",
-                      "ownerRole": "负责人角色",
-                      "status": "TODO",
-                      "actions": ["动作"],
-                      "acceptanceCriteria": ["验收标准"]
-                    }
-                  ],
-                  "negotiationPoints": ["谈判要点"],
-                  "requiredDocuments": ["需要准备的单证或资料"],
-                  "monitoringSignals": ["需要持续跟踪的信号"]
-                }
-                status 只能取 TODO、RUNNING、BLOCKED、DONE。计划要覆盖询盘澄清、报价、样品、PI、付款、生产交期和物流风险。
-                """;
-    }
-
-    /**
-     * 客户回复邮件 System Prompt —— 定义 AI 作为"专业外贸销售"生成英文回复邮件的行为。
-     * 要求：语气专业、明确下一步、主动索要缺失参数、给出报价前置条件、不虚构最终价格。
-     */
-    private String replySystemPrompt() {
-        return """
-                你是专业外贸销售。请根据询盘生成一封可以直接发送给客户的英文回复邮件。
-                要求：语气专业、明确下一步、主动索要缺失参数、给出报价前置条件，不虚构最终价格。
-                只输出邮件正文。
-                """;
-    }
 }

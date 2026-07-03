@@ -522,7 +522,6 @@ public class EmbeddingService {
      * @param cacheKey 缓存 key
      * @return 缓存的向量，未命中返回空 Mono
      */
-    @SuppressWarnings("unchecked")
     private Mono<float[]> getFromCache(String cacheKey) {
         try {
             Object cached = redisTemplate.opsForValue().get(cacheKey);
@@ -532,7 +531,8 @@ public class EmbeddingService {
                 if (cached instanceof float[]) {
                     return Mono.just((float[]) cached);
                 } else if (cached instanceof List) {
-                    // 反序列化时可能变成 List<Number>
+                    // 反序列化时可能变成 List<Number>（已通过 instanceof List 检查）
+                    @SuppressWarnings("unchecked")
                     List<Number> list = (List<Number>) cached;
                     float[] embedding = new float[list.size()];
                     for (int i = 0; i < list.size(); i++) {

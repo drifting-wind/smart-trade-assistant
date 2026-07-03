@@ -383,49 +383,7 @@ public class RagOrchestrationService {
      * 4. 要求标注引用来源（[1]、[2] 等），支持溯源定位
      */
     private String buildAugmentedSystemPrompt(List<SearchMatch> matches) {
-        if (matches.isEmpty()) {
-            return promptFactory.qaSystemPrompt();
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("你是外贸智能销售助手，只基于以下参考资料回答用户的具体问题。\n\n");
-        sb.append("参考资料：\n");
-
-        for (int i = 0; i < matches.size(); i++) {
-            SearchMatch match = matches.get(i);
-            sb.append(i + 1).append(". ");
-
-            // 添加标题（如果有）
-            String title = match.metadata().getOrDefault("title", "未命名文档").toString();
-            sb.append("[").append(title).append("] ");
-
-            // 截断长度，保留完整的上下文信息
-            String text = match.text();
-            if (text.length() > 300) {
-                text = text.substring(0, 300) + "...";
-            }
-            sb.append(text);
-            sb.append("\n");
-        }
-
-        // ⭐ 优化：添加回答约束
-        sb.append("\n回答要求：\n");
-        sb.append("- 直接给出答案，不要\"好的\"、\"当然可以\"等客套话\n");
-        sb.append("- 只基于参考资料，不编造、不推测、不扩展\n");
-        sb.append("- 如果没有相关信息，只说\"参考资料中未找到相关信息\"\n");
-        sb.append("- 答案应尽可能详细、完整，尽可能完整地利用参考资料中的内容\n");
-        sb.append("- 不要用\"根据以上信息\"、\"综上所述\"等总结性开头\n");
-        sb.append("- 如果有必要，可以给出具体的数据、步骤、分类等细节内容\n");
-        sb.append("- 不要输出问候语，不要问\"还有其他问题吗？\"\n");
-
-        // ⭐ 新增：要求标注引用来源
-        sb.append("\n引用标注规则：\n");
-        sb.append("- 回答中必须标注引用来源，使用 [1]、[2] 等上标格式\n");
-        sb.append("- 每个事实或数据后面都要标注对应的引用编号\n");
-        sb.append("- 引用编号对应上面参考资料的序号\n");
-        sb.append("- 示例：\"LED-PANEL-50W 的功率是 50W [1]，电压范围 220V [1]。\"\n");
-
-        return sb.toString();
+        return promptFactory.ragSystemPrompt(matches);
     }
 
     /**
@@ -632,7 +590,7 @@ public class RagOrchestrationService {
      * @return 过滤后的结果，如果没有匹配则返回空列表（调用方应使用原始结果）
      */
     private List<SearchMatch> filterByProductName(String question, List<SearchMatch> matches) {
-        System.err.println("[FILTER-DEBUG] filterByProductName called, question=" + question + ", matches=" + matches.size());
+        log.debug("[FILTER-DEBUG] filterByProductName called, question={}, matches={}", question, matches.size());
         if (question == null || question.isEmpty() || matches.size() <= 1) {
             return List.of();
         }
@@ -648,7 +606,7 @@ public class RagOrchestrationService {
                 }
             }
         }
-        System.err.println("[FILTER-DEBUG] extracted keywords: " + keywords);
+        log.debug("[FILTER-DEBUG] extracted keywords: {}", keywords);
 
         // ⭐ 对每个文档，计算标题中的关键词匹配数
         // 只保留匹配数最高的文档（去重不同 chunk 之间的文档）
@@ -668,16 +626,16 @@ public class RagOrchestrationService {
             }
         }
         
-        System.err.println("[FILTER-DEBUG] docScores: " + docScores);
+        log.debug("[FILTER-DEBUG] docScores: {}", docScores);
         
         if (docScores.isEmpty()) {
-            System.err.println("[FILTER-DEBUG] no documents matched any keywords");
+            log.debug("[FILTER-DEBUG] no documents matched any keywords");
             return List.of();
         }
         
         // ⭐ 找到最高分的文档
         int maxScore = docScores.values().stream().max(Integer::compareTo).orElse(0);
-        System.err.println("[FILTER-DEBUG] maxScore=" + maxScore + ", keeping only docs with max score");
+        log.debug("[FILTER-DEBUG] maxScore={}, keeping only docs with max score", maxScore);
         
         // ⭐ 只保留最高分文档的 chunks
         Set<String> topDocIds = docScores.entrySet().stream()
