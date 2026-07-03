@@ -24,6 +24,9 @@ function updateMetrics(data) {
   const r = data.route?.selectedModel;
   model.textContent = r && m !== r ? `${m}（降级自 ${r}）` : m;
   next.textContent = (data.nextActions || []).slice(0, 2).join("；") || "查看详情";
+  // 更新下一步后，隐藏底部的"等待评估"提示
+  const nextHint = document.getElementById("next-hint");
+  if (nextHint) nextHint.textContent = "";
 }
 
 function renderTasks(plan) {

@@ -293,12 +293,40 @@ button.purple {
   line-height: 1.2;
 }
 
+/* 下一步内容较长，缩小字体、取消加粗 */
+.metric #next {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
 .metric .small {
   margin-top: 3px;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 500;
   word-break: break-word;
+}
+
+/* 看板底部提示 */
+.board-tips {
+  margin-top: 20px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.06) 0%, rgba(124, 58, 237, 0.02) 100%);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 12px;
+}
+.board-tips-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #7c3aed;
+  margin-bottom: 6px;
+}
+.board-tips-content {
+  font-size: 12px;
+  color: #787888;
+  line-height: 1.6;
 }
 
 /* 选项卡 */
