@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * 支持的 Embedding API（OpenAI 兼容格式）：
  * - Alibaba DashScope: POST https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings
- *   - 模型: text-embedding-v3（默认 1024 维，中文效果好）
+ *   - 模型: text-embedding-v4（默认 1024 维，中文效果好）
  * - DeepSeek: POST https://api.deepseek.com/v1/embeddings
  *   - 模型: deepseek-chat
  * - OpenAI: POST https://api.openai.com/v1/embeddings
@@ -42,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * 请求格式（OpenAI 兼容）：
  * {
- *   "model": "text-embedding-v3",
+ *   "model": "text-embedding-v4",
  *   "input": ["文本1", "文本2"],
  *   "encoding_format": "float"
  * }
@@ -110,7 +110,7 @@ public class EmbeddingService {
      *
      * 生产级流程：
      * 0. 先查 Redis 缓存（key: embedding:md5(text)），命中则直接返回
-     * 1. 优先调用主模型（text-embedding-v3）
+     * 1. 优先调用主模型（text-embedding-v4）
      * 2. 主模型失败时，自动降级到 Mock 服务
      * 3. 熔断机制：连续失败 3 次后，直接走降级
      * 4. 监控指标：记录每次调用的耗时和成功率
@@ -160,7 +160,7 @@ public class EmbeddingService {
     }
 
     /**
-     * 调用主模型（text-embedding-v3）
+     * 调用主模型（text-embedding-v4）
      */
     private Mono<float[]> embedWithPrimary(String text) {
         // 检查熔断器
@@ -393,7 +393,7 @@ public class EmbeddingService {
      *
      * 格式：
      * {
-     *   "model": "text-embedding-v3",
+     *   "model": "text-embedding-v4",
      *   "input": ["文本1", "文本2"],
      *   "encoding_format": "float",
      *   "output_dimension": 1024  // ⭐ 关键：显式指定输出维度（text-embedding-v3/v4 支持）

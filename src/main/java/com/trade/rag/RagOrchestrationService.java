@@ -163,31 +163,79 @@ public class RagOrchestrationService {
     public Flux<AiStreamEvent> streamWithRetrieval(ChatRequest request) {
         log.info("🔍 RAG 流式问答开始: {}", request.question());
 
-        return hybridSearchService.search(request.question(), maxResults)
-                .flatMapMany(matches -> {
-                    log.info("📚 混合检索完成，共 {} 条结果", matches.size());
-                    System.err.println("[FILTER-DEBUG] streamWithRetrieval search returned " + matches.size() + " matches");
+        String question = request.question();
+        String cacheKey = generateRagCacheKey(question);
 
-                    // ⭐ 产品名过滤
-                    String question = request.question();
-                    System.err.println("[FILTER-DEBUG] about to filter, question=" + question + ", matches.size=" + matches.size());
-                    if (matches.size() > 1) {
-                        List<SearchMatch> filtered = filterByProductName(question, matches);
-                        if (!filtered.isEmpty()) {
-                            matches = filtered;
-                        } else {
-                            List<SearchMatch> cf = filterByContentRelevance(question, matches);
-                            if (!cf.isEmpty()) matches = cf;
-                        }
-                    }
-
-                    // Rerank 重排序
-                    return rerankService.rerank(request.question(), matches)
-                            .flatMapMany(reranked -> {
-                                log.info("🔄 Rerank 完成，最终 {} 条结果", reranked.size());
-                                return streamWithMatches(request, reranked);
-                            });
+        // 先查缓存，命中则直接返回缓存结果
+        return getRagAnswerFromCache(cacheKey)
+                .filter(cached -> cached.answer() != null && !cached.answer().isBlank())
+                .flatMapMany(cached -> {
+                    log.info("✅ RAG 回答缓存命中，直接返回缓存");
+                    String eventId = UUID.randomUUID().toString();
+                    return Flux.concat(
+                            Mono.just(AiStreamEvent.token(eventId, null, cached.answer())),
+                            Mono.just(AiStreamEvent.done(eventId, null, cached.hasRelevantInfo(), cached.citations()))
+                    );
                 })
+                .switchIfEmpty(
+                        Flux.defer(() -> {
+                            // 用于累积流式回答的容器（跨 lambda 需要数组包装）
+                            StringBuilder[] answerBuf = {new StringBuilder()};
+                            final boolean[] hasRelevant = {false};
+                            final List<Citation>[] citationList = new List[1];
+
+                            return hybridSearchService.search(question, maxResults)
+                                    .flatMapMany(matches -> {
+                                        log.info("📚 混合检索完成，共 {} 条结果", matches.size());
+
+                                        // 产品名过滤
+                                        if (matches.size() > 1) {
+                                            List<SearchMatch> filtered = filterByProductName(question, matches);
+                                            if (!filtered.isEmpty()) {
+                                                matches = filtered;
+                                            } else {
+                                                List<SearchMatch> cf = filterByContentRelevance(question, matches);
+                                                if (!cf.isEmpty()) matches = cf;
+                                            }
+                                        }
+
+                                        // Rerank 重排序
+                                        return rerankService.rerank(question, matches)
+                                                .flatMapMany(reranked -> {
+                                                    log.info("🔄 Rerank 完成，最终 {} 条结果", reranked.size());
+                                                    return streamWithMatches(request, reranked);
+                                                });
+                                    })
+                                    // 累积 token 和 done 事件信息
+                                    .doOnNext(event -> {
+                                        if (event.type() == com.trade.enums.StreamEventType.TOKEN && event.content() != null) {
+                                            answerBuf[0].append(event.content());
+                                        }
+                                        if (event.type() == com.trade.enums.StreamEventType.DONE) {
+                                            hasRelevant[0] = Boolean.TRUE.equals(event.hasRelevantInfo());
+                                            if (event.citations() != null) citationList[0] = event.citations();
+                                        }
+                                    })
+                                    // 流完整结束后（成功/取消/异常），写入 Redis 缓存
+                                    .doFinally(signal -> {
+                                        if (signal == reactor.core.publisher.SignalType.ON_COMPLETE) {
+                                            String fullAnswer = answerBuf[0].toString();
+                                            if (!fullAnswer.isBlank()) {
+                                                ChatResponse toCache = new ChatResponse(
+                                                        UUID.randomUUID().toString(),
+                                                        request.conversationId(),
+                                                        null, fullAnswer, null, null,
+                                                        citationList[0] != null ? citationList[0] : List.of(),
+                                                        java.time.Instant.now(),
+                                                        hasRelevant[0]
+                                                );
+                                                saveRagAnswerToCache(cacheKey, toCache);
+                                                log.info("✅ RAG 回答已写入缓存, TTL: 24h");
+                                            }
+                                        }
+                                    });
+                        })
+                )
                 .onErrorMap(e -> new RuntimeException("RAG 流式问答失败: " + e.getMessage(), e));
     }
 
@@ -473,13 +521,41 @@ public class RagOrchestrationService {
         try {
             Object cached = redisTemplate.opsForValue().get(cacheKey);
             if (cached != null) {
-                log.info("✅ RAG 回答缓存命中: {}", cacheKey);
+                log.info("✅ RAG 回答缓存命中: {}, type={}", cacheKey, cached.getClass().getName());
                 if (cached instanceof ChatResponse) {
-                    return Mono.just((ChatResponse) cached);
+                    ChatResponse response = (ChatResponse) cached;
+                    if (response.answer() != null && !response.answer().isBlank()) {
+                        return Mono.just(response);
+                    } else {
+                        log.info("缓存回答为空，跳过");
+                    }
+                } else if (cached instanceof java.util.Map) {
+                    // 处理 Redis 反序列化为 Map 的情况
+                    log.info("⚠️ 缓存类型为 Map，尝试手动转换");
+                    try {
+                        java.util.Map<String, Object> map = (java.util.Map<String, Object>) cached;
+                        String answer = (String) map.get("answer");
+                        if (answer != null && !answer.isBlank()) {
+                            Object hasRelevant = map.get("hasRelevantInfo");
+                            boolean hasRel = hasRelevant instanceof Boolean ? (Boolean) hasRelevant : false;
+                            Object citations = map.get("citations");
+                            java.util.List<Citation> citationList = citations instanceof java.util.List
+                                    ? (java.util.List<Citation>) citations : java.util.List.of();
+                            return Mono.just(new ChatResponse(
+                                    java.util.UUID.randomUUID().toString(),
+                                    null, null, answer, null, null,
+                                    citationList, java.time.Instant.now(), hasRel
+                            ));
+                        }
+                    } catch (Exception e) {
+                        log.warn("⚠️ Map 转换失败: {}", e.getMessage());
+                    }
+                } else {
+                    log.warn("⚠️ 未知缓存类型: {}", cached.getClass().getName());
                 }
             }
         } catch (Exception e) {
-            log.warn("⚠️ 读取 RAG 回答缓存失败: {}", e.getMessage());
+            log.warn("⚠️ 读取 RAG 回答缓存失败: {}", e.getMessage(), e);
         }
         return Mono.empty();
     }
