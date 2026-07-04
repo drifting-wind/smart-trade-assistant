@@ -23,7 +23,14 @@ function updateMetrics(data) {
   const m = data.model || "-";
   const r = data.route?.selectedModel;
   model.textContent = r && m !== r ? `${m}（降级自 ${r}）` : m;
-  next.textContent = (data.nextActions || []).slice(0, 2).join("；") || "查看详情";
+  const nextContent = (data.nextActions || []).slice(0, 2).join("；") || "查看详情";
+  next.textContent = nextContent;
+  // 有实际内容时添加 .has-content 类（缩小字体），否则移除（保持粗体）
+  if (nextContent !== "-" && nextContent !== "查看详情") {
+    next.classList.add("has-content");
+  } else {
+    next.classList.remove("has-content");
+  }
   // 更新下一步后，隐藏底部的"等待评估"提示
   const nextHint = document.getElementById("next-hint");
   if (nextHint) nextHint.textContent = "";

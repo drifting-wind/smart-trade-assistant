@@ -293,12 +293,14 @@ button.purple {
   line-height: 1.2;
 }
 
-/* 下一步内容较长，缩小字体、取消加粗 */
-.metric #next {
+/* 下一步内容较长时，缩小字体、取消加粗（通过 JS 添加 .has-content 类）
+ color: #94a3b8;
+ */
+.metric #next.has-content {
   font-size: 12px;
   font-weight: 400;
   line-height: 1.5;
-  color: #94a3b8;
+  color: #1e293b;
 }
 
 .metric .small {
