@@ -117,8 +117,7 @@ public class RagOrchestrationService {
                                     log.info("📚 混合检索完成，共 {} 条结果", matches.size());
 
                                     // ⭐ 优化：如果检索结果质量太差，直接返回"未找到"
-                                    if (matches.isEmpty()||matches.get(0).score() < 0.55) {
-//                                        if (matches.isEmpty()||matches.get(0).score() < 0.55) {
+                                    if (matches.isEmpty() || matches.get(0).score() < 0.6) {
                                         log.info("⚠️ 检索结果质量低于阈值，跳过 LLM 调用");
                                         return Mono.just(ChatResponse.noAnswer(question));
                                     }
@@ -173,7 +172,7 @@ public class RagOrchestrationService {
                 .flatMapMany(cached -> {
                     log.info("✅ RAG 回答缓存命中，分块流式输出（打字机效果）");
                     String eventId = UUID.randomUUID().toString();
-                    // 将答案按每 2 个字符切分，模拟流式输出（比真实 LLM 快，仍有打字机感）
+                    // 将答案按每 2 个字符切分，模拟流式输出（比真实 LLM 快，仍有打字机感），提升用户体验，防止割裂感
                     List<String> chunks = splitIntoChunks(cached.answer(), 2);
                     Flux<AiStreamEvent> tokenFlux = Flux.fromIterable(chunks)
                             .delayElements(java.time.Duration.ofMillis(30))
@@ -211,7 +210,7 @@ public class RagOrchestrationService {
                                                 .flatMapMany(reranked -> {
                                                     log.info("🔄 Rerank 完成，最终 {} 条结果", reranked.size());
                                                     // 如果检索结果质量太差，返回"未找到相关信息"
-                                                    if (reranked.isEmpty() || reranked.get(0).score() < 0.55) {
+                                                    if (reranked.isEmpty() || reranked.get(0).score() < 0.6) {
                                                         log.info("⚠️ 检索结果质量低于阈值，跳过 AI 调用");
                                                         String eventId = UUID.randomUUID().toString();
                                                         return Flux.concat(
