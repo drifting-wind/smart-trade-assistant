@@ -11,7 +11,6 @@ import com.trade.trade.service.TradeSalesService;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -134,39 +133,6 @@ public class TradeSalesController {
             summary = "商机分析",
             description = "AI 评估外贸询盘质量，返回打分、风险等级、购买意图、推荐产品等结构化结果"
     )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "商机分析成功",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = OpportunityAnalysisResponse.class),
-                            examples = @ExampleObject(
-                                    name = "成功响应",
-                                    value = """
-                                            {
-                                              "opportunityId": "ABC-LIGHTING-INC-LED-PANEL-60X60",
-                                              "leadScore": 78,
-                                              "riskLevel": "MEDIUM",
-                                              "buyingIntent": "HIGH_INTENT",
-                                              "summary": "客户有明确采购数量和目的港，意向较高",
-                                              "recommendedProducts": ["LED Panel 60x60 40W"],
-                                              "missingInformation": ["确认付款条件"],
-                                              "nextActions": ["发送阶梯报价表"]
-                                            }
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "请求参数校验失败"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "未授权"
-            )
-    })
     public Mono<OpportunityAnalysisResponse> analyze(@Valid @RequestBody TradeInquiryRequest request) {
         // 安全检查
         String sanitized = sanitizeInput(request.message());
