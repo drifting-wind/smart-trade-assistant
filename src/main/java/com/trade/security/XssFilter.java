@@ -30,8 +30,8 @@ import java.util.regex.Pattern;
  * - HTML 注入
  * - 编码绕过
  *
- * @author Security Team
- * @since 1.0
+ * @author Jonas
+ * 
  */
 @Component
 @Order(2) // 在 ApiTokenWebFilter 之后执行

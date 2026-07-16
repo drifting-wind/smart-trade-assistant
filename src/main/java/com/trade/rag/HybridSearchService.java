@@ -1,6 +1,5 @@
 package com.trade.rag;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trade.config.AiGatewayProperties;
 import com.trade.rag.dto.SearchResultDto.SearchMatch;
@@ -146,9 +145,9 @@ public class HybridSearchService {
      *
      * @param vectorResults  向量检索结果
      * @param bm25Results    BM25 检索结果
-     * @param topK           最终返回数量
-     * @param vectorWeight   向量权重
-     * @param bm25Weight     BM25 权重
+     * @param topK           最终返回数量 20
+     * @param vectorWeight   向量权重 0.7
+     * @param bm25Weight     BM25 权重 0.3
      * @return 融合后的结果
      */
     private Mono<List<SearchMatch>> rrfFuse(

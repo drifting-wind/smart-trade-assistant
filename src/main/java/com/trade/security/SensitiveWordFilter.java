@@ -28,8 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - AI 输出后的内容审核
  * - 聊天记录的合规性检查
  *
- * @author Security Team
- * @since 1.0
+ * @author Jonas
  */
 @Component
 public class SensitiveWordFilter {
@@ -99,7 +98,6 @@ public class SensitiveWordFilter {
         Map<Character, Object> currentMap = sensitiveWordMap;
         for (int i = 0; i < word.length(); i++) {
             char c = word.charAt(i);
-            final Map<Character, Object> finalCurrentMap = currentMap;
             currentMap.computeIfAbsent(c, k -> new ConcurrentHashMap<>());
             currentMap = (Map<Character, Object>) currentMap.get(c);
         }

@@ -24,8 +24,7 @@ import org.springframework.web.server.WebFilter;
  * - security.prompt-injection.enabled: Prompt 注入防护
  * - security.xss.enabled: XSS 防护
  *
- * @author Security Team
- * @since 1.0
+ * @author Jonas
  */
 @Configuration
 public class SecurityConfig {

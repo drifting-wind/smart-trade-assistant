@@ -159,7 +159,7 @@ public class MilvusVectorStoreClient {
                 throw new VectorStoreException("向量插入失败: " + response.getMessage());
             }
 
-            // 刷新集合
+            // 刷新集合 flush = 把内存中的向量数据封印到磁盘并使其可搜索，是 Milvus 写入后必须执行的操作
             milvusClient.flush(FlushParam.newBuilder()
                     .addCollectionName(collectionName)
                     .build());

@@ -1,10 +1,8 @@
 package com.trade.api;
 
 import com.trade.dto.AiStreamEvent;
-import com.trade.dto.ChatMessageDto;
 import com.trade.dto.ChatRequest;
 import com.trade.dto.ChatResponse;
-import com.trade.enums.ModelProvider;
 import com.trade.rag.RagOrchestrationService;
 import com.trade.security.PromptInjectionGuard;
 import com.trade.security.SensitiveWordFilter;
@@ -12,10 +10,8 @@ import com.trade.security.XssFilter;
 import com.trade.service.ChatOrchestrationService;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,9 +27,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.util.List;
-import java.util.Map;
 
 /**
  * 智能问答 REST 接口 —— /api/v1/chat
@@ -91,43 +84,6 @@ public class ChatController {
             summary = "同步问答",
             description = "提交问题，等待 AI 完整回答后一次性返回。根据 useKnowledgeBase 自动选择普通对话或 RAG 对话。"
     )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "成功返回 AI 回答",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ChatResponse.class),
-                            examples = @ExampleObject(
-                                    name = "成功响应",
-                                    value = """
-                                            {
-                                              "id": "req-123",
-                                              "answer": "LED面板灯的功率是50W。",
-                                              "model": "DEEPSEEK",
-                                              "citations": []
-                                            }
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "请求参数校验失败（如 question 为空）",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = com.trade.dto.ApiErrorResponse.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "未授权（缺少或无效的 Token）"
-            ),
-            @ApiResponse(
-                    responseCode = "500",
-                    description = "服务器内部错误"
-            )
-    })
     public Mono<ChatResponse> complete(@Valid @RequestBody ChatRequest request) {
         // 安全检查
         SecurityCheckResult checkResult = performSecurityChecks(request.question());

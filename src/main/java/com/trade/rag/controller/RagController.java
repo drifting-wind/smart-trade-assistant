@@ -1,19 +1,18 @@
 package com.trade.rag.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trade.dto.AiStreamEvent;
 import com.trade.dto.ChatRequest;
 import com.trade.dto.ChatResponse;
 import com.trade.rag.DocumentIngestionService;
 import com.trade.rag.RagOrchestrationService;
+import com.trade.rag.dto.BatchUploadResponse;
 import com.trade.rag.dto.DocumentUploadRequest;
 import com.trade.rag.dto.DocumentUploadResponse;
 import com.trade.rag.dto.SearchResultDto;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.trade.rag.dto.BatchUploadResponse;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -49,13 +48,7 @@ import java.util.Map;
  * - SSE (Server-Sent Events) 流式输出
  * - multipart/form-data 文件上传
  *
- * 接口列表：
- * - POST /api/v1/knowledge/documents/upload  上传文件
- * - POST /api/v1/knowledge/documents         摄入文本
- * - GET  /api/v1/knowledge/search            语义搜索
- * - POST /api/v1/knowledge/chat              RAG 问答（同步）
- * - POST /api/v1/knowledge/chat/stream       RAG 问答（流式）
- * - DELETE /api/v1/knowledge/documents/{id}  删除文档
+ * @author Jonas
  */
 @Validated
 @RestController
@@ -87,16 +80,6 @@ public class RagController {
      * - contentType: 文件类型（可选，自动推断）
      * - metadata: 元数据（可选，JSON 格式）
      *
-     * 响应示例：
-     * {
-     *   "documentId": "abc-123",
-     *   "title": "产品手册.pdf",
-     *   "chunkCount": 42,
-     *   "status": "success",
-     *   "message": null,
-     *   "metadata": {"category": "product"},
-     *   "createdAt": "2026-06-10T10:30:00Z"
-     * }
      */
     @GetMapping("/documents/{documentId}")
     @RateLimiter(name = "api") // 限流：每秒 100 次请求
@@ -212,38 +195,6 @@ public class RagController {
             summary = "上传单个文件",
             description = "上传 PDF/DOCX/TXT/Markdown 文件，自动解析、分块、Embedding 并写入知识库"
     )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "文件上传成功",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = DocumentUploadResponse.class),
-                            examples = @ExampleObject(
-                                    name = "成功响应",
-                                    value = """
-                                            {
-                                              "documentId": "abc-123",
-                                              "title": "产品手册.pdf",
-                                              "chunkCount": 42,
-                                              "status": "success",
-                                              "message": null,
-                                              "metadata": {"category": "product"},
-                                              "createdAt": "2026-06-10T10:30:00Z"
-                                            }
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "不支持的文件类型或参数错误"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "未授权"
-            )
-    })
     public Mono<DocumentUploadResponse> uploadDocument(
             @RequestPart("file") FilePart file,
             @RequestParam(value = "title", required = false) String title,
@@ -283,29 +234,6 @@ public class RagController {
      * - titlePrefix: 标题前缀（可选，会自动附加文件名）
      * - metadata: 元数据（可选，JSON 格式，应用于所有文件）
      *
-     * 响应示例：
-     * {
-     *   "totalCount": 3,
-     *   "successCount": 2,
-     *   "failedCount": 1,
-     *   "results": [
-     *     {
-     *       "filename": "产品手册.pdf",
-     *       "documentId": "abc-123",
-     *       "chunkCount": 42,
-     *       "status": "success",
-     *       "error": null
-     *     },
-     *     {
-     *       "filename": "不支持的文件.exe",
-     *       "documentId": null,
-     *       "chunkCount": 0,
-     *       "status": "failed",
-     *       "error": "不支持的文件类型"
-     *     }
-     *   ],
-     *   "processedAt": "2026-06-10T10:30:00Z"
-     * }
      */
     @PostMapping(value = "/documents/upload/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RateLimiter(name = "upload") // 限流：每分钟 10 次请求
@@ -443,42 +371,6 @@ public class RagController {
             summary = "语义搜索",
             description = "在知识库中搜索与查询相关的文档块，返回 Top-K 匹配结果（不调用 AI）"
     )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "搜索成功",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = SearchResultDto.class),
-                            examples = @ExampleObject(
-                                    name = "搜索结果",
-                                    value = """
-                                            {
-                                              "query": "如何报价？",
-                                              "matches": [
-                                                {
-                                                  "text": "报价时应考虑...",
-                                                  "score": 0.92,
-                                                  "documentId": "abc-123",
-                                                  "chunkIndex": 5,
-                                                  "metadata": {"title": "报价指南.pdf"}
-                                                }
-                                              ],
-                                              "searchTimeMs": 45
-                                            }
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "查询参数为空"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "未授权"
-            )
-    })
     public Mono<SearchResultDto> search(@RequestParam String query) {
         log.info("🔍 语义搜索: {}", query);
         return ragService.search(query);
@@ -507,41 +399,6 @@ public class RagController {
             summary = "RAG 问答（同步）",
             description = "基于知识库的检索增强问答，自动检索相关文档并生成回答"
     )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "成功返回 AI 回答",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ChatResponse.class),
-                            examples = @ExampleObject(
-                                    name = "成功响应",
-                                    value = """
-                                            {
-                                              "id": "req-123",
-                                              "answer": "LED面板灯的功率是50W [1]",
-                                              "model": "DEEPSEEK",
-                                              "citations": [
-                                                {
-                                                  "index": 1,
-                                                  "documentId": "doc-456",
-                                                  "title": "销售手册.pdf"
-                                                }
-                                              ]
-                                            }
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "请求参数校验失败"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "未授权"
-            )
-    })
     public Mono<ChatResponse> chat(@Valid @RequestBody ChatRequest request) {
         log.info("💬 RAG 问答: {}", request.question());
         return ragService.completeWithRetrieval(request);
@@ -561,39 +418,6 @@ public class RagController {
             summary = "RAG 问答（流式）",
             description = "基于知识库的检索增强问答，通过 SSE 实时推送 AI 生成的每个 token"
     )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "SSE 事件流",
-                    content = @Content(
-                            mediaType = "text/event-stream",
-                            examples = @ExampleObject(
-                                    name = "SSE 事件流",
-                                    value = """
-                                            id: event-1
-                                            event: route
-                                            data: {"matchesCount": 5}
-
-                                            id: event-1
-                                            event: token
-                                            data: {"content":"开发新客户的方法"}
-
-                                            id: event-1
-                                            event: done
-                                            data: {"model":"DEEPSEEK"}
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "请求参数校验失败"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "未授权"
-            )
-    })
     public Flux<ServerSentEvent<AiStreamEvent>> streamChat(@Valid @RequestBody ChatRequest request) {
         log.info("💬 RAG 流式问答: {}", request.question());
         return ragService.streamWithRetrieval(request)

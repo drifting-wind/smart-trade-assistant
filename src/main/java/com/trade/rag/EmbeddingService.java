@@ -178,6 +178,7 @@ public class EmbeddingService {
                 .retrieve()
                 .bodyToMono(JsonNode.class)
                 .timeout(primaryConfig.getTimeout())
+                //重试（Retry）
                 .retryWhen(Retry.backoff(primaryConfig.getMaxRetries(), Duration.ofSeconds(1))
                         .filter(this::retryable))
                 .map(this::extractEmbedding)
@@ -271,7 +272,8 @@ public class EmbeddingService {
 
         // 对每条文本：先查缓存，未命中再调用 API
         List<Mono<float[]>> embeddingMonos = texts.stream()
-                .map(this::embed)  // embed() 内部已包含 getFromCache + saveToCache
+                // embed() 内部已包含 getFromCache + saveToCache
+                .map(this::embed)
                 .collect(Collectors.toList());
 
         return Mono.zip(embeddingMonos, results -> {

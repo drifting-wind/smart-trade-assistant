@@ -28,8 +28,8 @@ import java.util.regex.Pattern;
  * - 多语言混合攻击
  * - 编码绕过
  *
- * @author Security Team
- * @since 1.0
+ * @author Jonas
+ * 
  */
 @Component
 public class PromptInjectionGuard {

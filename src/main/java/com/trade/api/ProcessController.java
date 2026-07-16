@@ -8,7 +8,6 @@ import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -102,43 +101,7 @@ public class ProcessController {
             summary = "同步流程规划",
             description = "提交业务目标，AI 自动拆解为可执行的任务计划（含任务列表、负责人、风险点、监控指标）"
     )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "成功返回流程计划",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = ProcessPlanResponse.class),
-                            examples = @ExampleObject(
-                                    name = "入职流程",
-                                    value = """
-                                            {
-                                              "processName": "入职流程",
-                                              "summary": "新员工入职完整流程",
-                                              "tasks": [
-                                                {
-                                                  "order": 1,
-                                                  "name": "分配工位和电脑",
-                                                  "ownerRole": "行政",
-                                                  "status": "TODO"
-                                                }
-                                              ],
-                                              "risks": ["工位可能紧张"],
-                                              "monitoringSignals": ["入职完成时效"]
-                                            }
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "请求参数校验失败（如 goal 为空）"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "未授权"
-            )
-    })
+
     public Mono<ProcessPlanResponse> plan(@Valid @RequestBody ProcessRequest request) {
         return processService.plan(request);
     }
@@ -198,39 +161,6 @@ public class ProcessController {
             summary = "流式流程规划（SSE）",
             description = "提交业务目标，通过 SSE 实时推送 AI 生成的流程计划内容"
     )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "SSE 事件流",
-                    content = @Content(
-                            mediaType = "text/event-stream",
-                            examples = @ExampleObject(
-                                    name = "SSE 事件流",
-                                    value = """
-                                            id: event-1
-                                            event: route
-                                            data: {"scenario":"FLOW","selectedModel":"ALIBABA_BAILIAN"}
-
-                                            id: event-1
-                                            event: token
-                                            data: {"content":"{\\"processName\\":\\"入职流程\\""}
-
-                                            id: event-1
-                                            event: done
-                                            data: {"model":"ALIBABA_BAILIAN"}
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "请求参数校验失败"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "未授权"
-            )
-    })
     public Flux<ServerSentEvent<AiStreamEvent>> stream(@Valid @RequestBody ProcessRequest request) {
         return processService.stream(request)
                 // 将内部 AiStreamEvent 包装为 HTTP SSE 格式，推送给客户端
