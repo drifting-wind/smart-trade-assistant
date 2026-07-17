@@ -22,9 +22,9 @@ spring:
   data:
     redis:
       # Redis 服务地址
-      host: ${REDIS_HOST:127.0.0.1}
+      host: ${REDIS_HOST}
       # Redis 端口
-      port: ${REDIS_PORT:6379}
+      port: ${REDIS_PORT}
       # Redis 密码
       password: ${REDIS_PASSWORD}
       # 数据库索引（0-15）
@@ -49,12 +49,11 @@ spring:
 logging:
   level:
     # 应用日志级别
-    com.example.multiai: DEBUG
     com.trade: DEBUG
   ai:
     dashscope:
       # DashScope AI 日志开关
-      enabled: ${DASHSCOPE_ENABLED:false}
+      enabled: ${DASHSCOPE_ENABLED}
   jackson:
     # JSON 序列化：不包含 null 字段
     default-property-inclusion: non_null
@@ -140,9 +139,9 @@ ai:
     # 安全认证配置
     security:
       # 是否启用 API 认证（可通过环境变量覆盖）
-      enabled: ${AI_AUTH_ENABLED:true}
+      enabled: ${AI_AUTH_ENABLED}
       # API 认证令牌（逗号分隔多个）
-      tokens: ${AI_GATEWAY_TOKENS:dev-token}
+      tokens: ${AI_GATEWAY_TOKENS}
       # 敏感词过滤配置
       sensitive-word:
         # 是否启用敏感词过滤
@@ -244,14 +243,14 @@ ai:
       # Milvus 配置
       milvus:
         # Milvus 服务地址
-        host: ${MILVUS_HOST:127.0.0.1}
+        host: ${MILVUS_HOST}
         # gRPC 端口（默认 19530）
-        port: ${MILVUS_PORT:19530}
+        port: ${MILVUS_PORT}
         # 数据库名称（Milvus 2.x 支持多数据库隔离）
-        database: ${MILVUS_DATABASE:trade}
+        database: ${MILVUS_DATABASE}
         # 认证信息
-        username: ${MILVUS_USERNAME:trade}
-        password: ${MILVUS_PASSWORD:123456}
+        username: ${MILVUS_USERNAME}
+        password: ${MILVUS_PASSWORD}
         # 连接超时时间
         timeout: 10s
 
