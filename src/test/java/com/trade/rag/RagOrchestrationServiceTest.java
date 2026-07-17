@@ -1,11 +1,18 @@
 package com.trade.rag;
 
-import com.trade.config.AiGatewayProperties;
-import com.trade.dto.ChatRequest;
-import com.trade.dto.ChatResponse;
+
+import com.trade.conversation.dto.ChatRequest;
+import com.trade.conversation.dto.ChatResponse;
+import com.trade.conversation.dto.RouteDecisionDto;
+import com.trade.conversation.service.AiRequestMapper;
+import com.trade.conversation.service.PromptFactory;
+import com.trade.gateway.AiGatewayProperties;
 import com.trade.rag.dto.SearchResultDto.SearchMatch;
-import com.trade.service.ChatOrchestrationService;
-import com.trade.service.PromptFactory;
+import com.trade.rag.service.*;
+import com.trade.shared.dto.AiStreamEvent;
+import com.trade.shared.enums.ModelProvider;
+import com.trade.shared.enums.ScenarioType;
+import com.trade.shared.enums.StreamEventType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,7 +62,7 @@ class RagOrchestrationServiceTest {
     private RerankService rerankService;
 
     @Mock
-    private ChatOrchestrationService chatService;
+    private AiRequestMapper.ChatOrchestrationService chatService;
 
     @Mock
     private PromptFactory promptFactory;
@@ -242,11 +249,11 @@ class RagOrchestrationServiceTest {
         when(promptFactory.qaSystemPrompt()).thenReturn("系统提示");
 
         // 模拟流式响应
-        com.trade.dto.AiStreamEvent routeEvent = com.trade.dto.AiStreamEvent.route(
+        AiStreamEvent routeEvent = AiStreamEvent.route(
                 "event-id",
-                new com.trade.dto.RouteDecisionDto(
-                        com.trade.enums.ScenarioType.QA,
-                        com.trade.enums.ModelProvider.DEEPSEEK,
+                new RouteDecisionDto(
+                        ScenarioType.QA,
+                        ModelProvider.DEEPSEEK,
                         null,
                         1.0,
                         "测试路由",
@@ -254,15 +261,15 @@ class RagOrchestrationServiceTest {
                 )
         );
 
-        com.trade.dto.AiStreamEvent tokenEvent = com.trade.dto.AiStreamEvent.token(
+        AiStreamEvent tokenEvent = AiStreamEvent.token(
                 "event-id",
-                com.trade.enums.ModelProvider.DEEPSEEK,
+                ModelProvider.DEEPSEEK,
                 "LED"
         );
 
-        com.trade.dto.AiStreamEvent doneEvent = com.trade.dto.AiStreamEvent.done(
+        AiStreamEvent doneEvent = AiStreamEvent.done(
                 "event-id",
-                com.trade.enums.ModelProvider.DEEPSEEK
+                ModelProvider.DEEPSEEK
         );
 
         when(chatService.stream(any(ChatRequest.class)))
@@ -274,23 +281,23 @@ class RagOrchestrationServiceTest {
         StepVerifier.create(ragOrchestrationService.streamWithRetrieval(request).take(5))
                 .assertNext(event -> {
                     // 第一个事件应该是路由事件（来自 streamWithMatches）
-                    assertThat(event.type()).isEqualTo(com.trade.enums.StreamEventType.ROUTE);
+                    assertThat(event.type()).isEqualTo(StreamEventType.ROUTE);
                 })
                 .assertNext(event -> {
                     // 第二个事件是 chatService.stream 的第一个事件（route）
-                    assertThat(event.type()).isEqualTo(com.trade.enums.StreamEventType.ROUTE);
+                    assertThat(event.type()).isEqualTo(StreamEventType.ROUTE);
                 })
                 .assertNext(event -> {
                     // 第三个事件应该是 token 事件
-                    assertThat(event.type()).isEqualTo(com.trade.enums.StreamEventType.TOKEN);
+                    assertThat(event.type()).isEqualTo(StreamEventType.TOKEN);
                 })
                 .assertNext(event -> {
                     // 第四个事件应该是 done 事件
-                    assertThat(event.type()).isEqualTo(com.trade.enums.StreamEventType.DONE);
+                    assertThat(event.type()).isEqualTo(StreamEventType.DONE);
                 })
                 .assertNext(event -> {
                     // 第五个事件应该是引用事件
-                    assertThat(event.type()).isEqualTo(com.trade.enums.StreamEventType.CITATIONS);
+                    assertThat(event.type()).isEqualTo(StreamEventType.CITATIONS);
                     assertThat(event.citations()).isNotEmpty();
                 })
                 .verifyComplete();

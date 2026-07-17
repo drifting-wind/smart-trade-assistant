@@ -1,19 +1,15 @@
 package com.trade.conversation.controller;
 
-import com.trade.conversation.service.AiRequestMapper;
-import com.trade.shared.dto.AiStreamEvent;
 import com.trade.conversation.dto.ChatRequest;
 import com.trade.conversation.dto.ChatResponse;
+import com.trade.conversation.service.AiRequestMapper;
 import com.trade.rag.service.RagOrchestrationService;
+import com.trade.shared.dto.AiStreamEvent;
 import com.trade.shared.security.PromptInjectionGuard;
 import com.trade.shared.security.SensitiveWordFilter;
 import com.trade.shared.security.XssFilter;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -126,43 +122,6 @@ public class ChatController {
             summary = "流式问答（SSE）",
             description = "提交问题，通过 SSE (Server-Sent Events) 实时推送 AI 生成的每个 token。适合前端实时展示。"
     )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "SSE 事件流",
-                    content = @Content(
-                            mediaType = "text/event-stream",
-                            examples = @ExampleObject(
-                                    name = "SSE 事件流",
-                                    value = """
-                                            id: event-1
-                                            event: route
-                                            data: {"scenario":"QA","selectedModel":"DEEPSEEK","score":95.0}
-
-                                            id: event-1
-                                            event: token
-                                            data: {"content":"LED面板灯的功率"}
-
-                                            id: event-1
-                                            event: token
-                                            data: {"content":"是50W。"}
-
-                                            id: event-1
-                                            event: done
-                                            data: {"model":"DEEPSEEK"}
-                                            """
-                            )
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "请求参数校验失败"
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "未授权"
-            )
-    })
     public Flux<ServerSentEvent<AiStreamEvent>> stream(@Valid @RequestBody ChatRequest request) {
         // 安全检查
         SecurityCheckResult checkResult = performSecurityChecks(request.question());

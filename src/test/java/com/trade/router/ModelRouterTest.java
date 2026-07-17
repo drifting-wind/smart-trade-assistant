@@ -1,15 +1,15 @@
 package com.trade.router;
 
-import com.trade.config.AiGatewayProperties;
-import com.trade.enums.ModelProvider;
-import com.trade.enums.ScenarioType;
-import com.trade.model.ModelRegistry;
+
+import com.trade.gateway.*;
+import com.trade.shared.enums.ModelProvider;
+import com.trade.shared.enums.ScenarioType;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 class ModelRouterTest {
 

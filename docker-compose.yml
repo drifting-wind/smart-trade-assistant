@@ -159,7 +159,7 @@ services:
       # MinIO 连接配置
       - MINIO_ENDPOINT=http://minio:9000
       # JVM 参数：堆内存 512MB~1GB，使用 G1 垃圾回收器
-      - JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC
+      - JAVA_OPTS=-Xms1024m -Xmx1024m -XX:+UseG1GC
     volumes:
       # 应用数据持久化（上传文件缓存等）
       - app-data:/app/data

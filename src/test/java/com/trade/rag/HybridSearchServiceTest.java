@@ -1,8 +1,12 @@
 package com.trade.rag;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.trade.config.AiGatewayProperties;
+import com.trade.gateway.AiGatewayProperties;
 import com.trade.rag.dto.SearchResultDto.SearchMatch;
+import com.trade.rag.service.Bm25IndexService;
+import com.trade.rag.service.EmbeddingService;
+import com.trade.rag.service.HybridSearchService;
+import com.trade.rag.service.MilvusVectorStoreClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,7 +17,6 @@ import org.mockito.quality.Strictness;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

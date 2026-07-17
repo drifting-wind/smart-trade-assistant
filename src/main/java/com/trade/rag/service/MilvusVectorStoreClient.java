@@ -422,7 +422,7 @@ public class MilvusVectorStoreClient {
                 .withFieldName("embedding")
                 .withIndexType(IndexType.IVF_FLAT)
                 .withMetricType(MetricType.COSINE)
-                .withExtraParam("{\"nlist\": 1024}")
+                .withExtraParam("{\"nlist\": 256}")
                 .build();
 
         R<io.milvus.param.RpcStatus> response = milvusClient.createIndex(indexParam);

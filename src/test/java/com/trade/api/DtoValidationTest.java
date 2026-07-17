@@ -1,6 +1,6 @@
 package com.trade.api;
 
-import com.trade.dto.ChatRequest;
+import com.trade.conversation.dto.ChatRequest;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;

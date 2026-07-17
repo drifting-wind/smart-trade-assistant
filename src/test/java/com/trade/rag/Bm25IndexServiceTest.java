@@ -1,5 +1,6 @@
 package com.trade.rag;
 
+import com.trade.rag.service.Bm25IndexService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

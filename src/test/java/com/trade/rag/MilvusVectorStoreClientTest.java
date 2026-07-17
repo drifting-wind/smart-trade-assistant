@@ -1,6 +1,7 @@
 package com.trade.rag;
 
-import com.trade.config.AiGatewayProperties;
+
+import com.trade.gateway.AiGatewayProperties;
 import com.trade.rag.dto.SearchResultDto.SearchMatch;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
