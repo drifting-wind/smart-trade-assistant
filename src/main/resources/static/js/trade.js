@@ -90,7 +90,7 @@ function initTradeEvents() {
       const m2 = data.model || "-";
       const r2 = data.route?.selectedModel;
       model.textContent = r2 && m2 !== r2 ? `${m2}（降级自 ${r2}）` : m2;
-      next.textContent = (data.negotiationPoints || []).slice(0, 2).join("；") || "推进计划已生成";
+      // 下一步只在评估商机时更新，生成计划不修改下一步
       renderTasks(data);
     } catch (error) {
       tasks.textContent = `生成失败：${error.message}`;
