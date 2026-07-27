@@ -18,20 +18,21 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 /**
- * BM25 索引重建服务 —— 应用启动时从 Milvus 全量加载 chunk 重建内存 BM25 索引。
+ * BM25 索引构建服务 —— 从 Milvus 全量加载 chunk 构建磁盘 BM25 索引。
  *
  * 触发条件：
- * 1. 应用首次启动（BM25 索引为空）
- * 2. BM25 索引被手动清空后重启
+ * 1. 应用首次启动（磁盘索引不存在）
+ * 2. BM25 索引被手动清空后
  *
  * 实现逻辑：
- * 1. 检查 Milvus 集合是否存在
- * 2. 分页查询所有 chunk（document_id, chunk_index, text）
- * 3. 逐条添加到 BM25 索引
- * 4. 提交索引，确保对搜索可见
+ * 1. 检查磁盘索引是否已存在（存在则跳过，无需重建）
+ * 2. 检查 Milvus 集合是否存在
+ * 3. 分页查询所有 chunk（document_id, chunk_index, text）
+ * 4. 逐条添加到 BM25 磁盘索引
+ * 5. 提交索引，确保对搜索可见
  *
  * 注意：
- * - 仅在索引为空时执行，避免重复重建
+ * - 磁盘索引存在时直接跳过，避免重复构建
  * - 分页查询避免一次性加载过多数据导致 OOM
  */
 @Service

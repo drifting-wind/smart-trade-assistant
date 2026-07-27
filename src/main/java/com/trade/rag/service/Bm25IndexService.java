@@ -15,36 +15,45 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Directory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * BM25 内存全文索引服务 —— 基于 Apache Lucene 9.11.0。
+ * BM25 磁盘全文索引服务 —— 基于 Apache Lucene 9.11.0。
  *
  * 职责：
- * 1. 在内存中维护 chunk 的 BM25 索引（使用 ByteBuffersDirectory）
+ * 1. 在磁盘上维护 chunk 的 BM25 索引（使用 FSDirectory）
  * 2. 支持 addChunk() 写入单条 chunk
  * 3. 支持 search() 执行关键词查询，返回 Top-K 匹配结果
  * 4. 线程安全：使用 ReentrantReadWriteLock 保护索引读写
  *
  * 注意：
- * - 索引存储在内存中，服务重启后需要重建
- * - 由 Bm25IndexRebuildService 负责启动时从 Milvus 重建索引
+ * - 索引存储在磁盘，服务重启后无需重建（直接加载）
+ * - 由 Bm25IndexRebuildService 负责首次启动时从 Milvus 构建索引
+ * - 磁盘索引大幅降低 JVM 堆内存压力，768MB 堆可支撑 50 万+ 文档
  */
 @Service
 public class Bm25IndexService {
 
     private static final Logger log = LoggerFactory.getLogger(Bm25IndexService.class);
 
-    /** Lucene 内存索引目录（堆内存，重启丢失） */
+    /** BM25 索引磁盘存储路径 */
+    @Value("${bm25.index.path:/app/data/bm25-index}")
+    private String indexPath;
+
+    /** Lucene 磁盘索引目录（FSDirectory，持久化存储） */
     private Directory directory;
 
     /** Lucene 索引写入器 */
@@ -64,14 +73,25 @@ public class Bm25IndexService {
     /**
      * 初始化 Lucene 索引。
      * 使用 StandardAnalyzer（适合英文和中文分词），BM25 相似度算法。
+     * 如果磁盘索引已存在则直接加载，否则创建新索引。
      */
     @PostConstruct
     public void init() throws IOException {
-        directory = new ByteBuffersDirectory();
+        Path path = Paths.get(indexPath);
+        // 确保索引目录存在
+        if (!Files.exists(path)) {
+            Files.createDirectories(path);
+            log.info("📁 创建 BM25 索引目录: {}", indexPath);
+        }
+        directory = FSDirectory.open(path);
         IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
         config.setSimilarity(new BM25Similarity());
         writer = new IndexWriter(directory, config);
-        log.info("✅ BM25 内存索引初始化完成");
+        // 从磁盘索引初始化文档计数（重启后索引仍在，无需重建）
+        DirectoryReader reader = DirectoryReader.open(writer);
+        documentCount = reader.numDocs();
+        reader.close();
+        log.info("✅ BM25 磁盘索引初始化完成, 路径: {}, 已有文档数: {}", indexPath, documentCount);
     }
 
     /**
@@ -177,6 +197,7 @@ public class Bm25IndexService {
 
     /**
      * 清空索引并重置计数器。
+     * 磁盘索引需要先删除文件再重新创建。
      */
     public void clear() {
         lock.writeLock().lock();
@@ -184,8 +205,22 @@ public class Bm25IndexService {
             writer.close();
             directory.close();
             documentCount = 0;
+            // 删除磁盘索引文件
+            Path path = Paths.get(indexPath);
+            if (Files.exists(path)) {
+                Files.walk(path)
+                    .sorted(java.util.Comparator.reverseOrder())
+                    .forEach(p -> {
+                        try {
+                            Files.delete(p);
+                        } catch (IOException e) {
+                            log.warn("⚠️ 删除索引文件失败: {}", p);
+                        }
+                    });
+            }
+            // 重新初始化
             init();
-            log.info("🗑️ BM25 索引已清空");
+            log.info("🗑️ BM25 磁盘索引已清空");
         } catch (IOException e) {
             log.error("❌ BM25 索引清空失败", e);
         } finally {

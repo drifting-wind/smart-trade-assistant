@@ -163,6 +163,8 @@ services:
     volumes:
       # 应用数据持久化（上传文件缓存等）
       - app-data:/app/data
+      # BM25 索引持久化（磁盘索引，重启免重建）
+      - bm25-index-data:/app/data/bm25-index
       # 日志持久化（方便宿主机查看日志）
       - app-logs:/app/logs
     depends_on:
@@ -185,6 +187,7 @@ volumes:
   milvus-data:  # Milvus 向量数据
   redis-data:   # Redis AOF/RDB 持久化数据
   app-data:     # 应用数据
+  bm25-index-data:  # BM25 磁盘索引（持久化，重启免重建）
   app-logs:     # 应用日志
 
 # ============================================
