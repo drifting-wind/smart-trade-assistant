@@ -61,7 +61,7 @@ logging:
       # 日期格式化为 ISO-8601 字符串（而非时间戳）
       write-dates-as-timestamps: false
   threads:
-    # 启用虚拟线程（提升并发性能）
+    # 启用虚拟线程（当前未生效，升级java21时生效）
     virtual:
       enabled: true
 
@@ -175,6 +175,8 @@ ai:
       max-results: 5
       # 相似度阈值（⭐ 优化：从0.5提高到0.6，只保留高相似度结果）
       similarity-threshold: 0.6
+      # BM25 索引磁盘存储路径（FSDirectory，持久化存储，重启免重建）
+      bm25-index-path: /app/data/bm25-index
       # 文本分块配置
       chunk-size: 200      # 每块字符数      若是：结构化文档 200 ~ 400 汉字（别超过 400）
       chunk-overlap: 35    # 块间重叠字符数   仅用来防语义截断，不要过大
@@ -275,8 +277,8 @@ ai:
         base-url: https://dashscope.aliyuncs.com/api/v1
         # API 密钥
         api-key: ${DASHSCOPE_API_KEY}
-        # 重排序后取 Top-K（⭐ 优化：从10减少到3，只保留最相关的3条）
-        top-k: 10
+        # 重排序后取 Top-K
+        top-k: 5
         # DashScope Rerank API top_n 参数
         top-n: 5
 
