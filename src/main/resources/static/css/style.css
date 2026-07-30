@@ -293,9 +293,12 @@ button.purple {
   line-height: 1.2;
 }
 
-/* 下一步内容较长时，缩小字体、取消加粗（通过 JS 添加 .has-content 类）
- color: #94a3b8;
- */
+/* 下一步默认状态：加粗（与商机评分、风险等级一致） */
+.metric #next {
+  font-weight: 800;
+}
+
+/* 下一步有实际内容时：缩小字体、取消加粗（通过 JS 添加 .has-content 类） */
 .metric #next.has-content {
   font-size: 12px;
   font-weight: 400;
