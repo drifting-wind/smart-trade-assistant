@@ -390,18 +390,4 @@ public enum ModelProvider {
 | XSS 防护 | 支持拦截和清洗两种模式 |
 | Resilience4j 限流 | API 100 req/s、Chat 20 req/s |
 
-详见 [docs/SECURITY.md](docs/SECURITY.md)
-
 ---
-
-## 容器化部署
-
-```bash
-# 构建镜像
-docker build -t smart-trade-assistant:1.0.0 .
-
-# 一键启动（含 Milvus + MinIO + Redis）
-docker compose up -d
-```
-
-生产环境建议把 `DEEPSEEK_API_KEY`、`BAILIAN_API_KEY`、`AI_GATEWAY_TOKENS` 放到密钥管理系统，不提交到仓库。
