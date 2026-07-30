@@ -1,19 +1,11 @@
-# ============================================
-# 服务器配置
-# ============================================
 server:
-  # 服务端口（可通过环境变量 SERVER_PORT 覆盖）
   port: ${SERVER_PORT:8080}
   compression:
     # 禁用 HTTP 压缩（避免 Netty Zstd 版本兼容问题）
     enabled: false
 
-# ============================================
-# Spring Boot 配置
-# ============================================
 spring:
   application:
-    # 应用名称
     name: smart-trade-assistant
   ai:
     dashscope:
@@ -21,34 +13,22 @@ spring:
       enabled: false
   data:
     redis:
-      # Redis 服务地址
       host: ${REDIS_HOST}
-      # Redis 端口
       port: ${REDIS_PORT}
-      # Redis 密码
       password: ${REDIS_PASSWORD}
-      # 数据库索引（0-15）
       database: 0
-      # 连接超时时间
       timeout: 10s
       # 连接池配置
       lettuce:
         pool:
-          # 最大连接数
           max-active: 16
-          # 最大空闲连接数
           max-idle: 8
-          # 最小空闲连接数
           min-idle: 4
-          # 连接空闲回收时间
           max-wait: 3s
 
-# ============================================
 # 日志配置
-# ============================================
 logging:
   level:
-    # 应用日志级别
     com.trade: DEBUG
   ai:
     dashscope:
@@ -61,13 +41,10 @@ logging:
       # 日期格式化为 ISO-8601 字符串（而非时间戳）
       write-dates-as-timestamps: false
   threads:
-    # 启用虚拟线程（当前未生效，升级java21时生效）
     virtual:
       enabled: true
 
-# ============================================
 # Actuator 监控配置
-# ============================================
 management:
   endpoints:
     web:
@@ -83,31 +60,22 @@ management:
       show-details: always
       show-components: always
 
-# ============================================
-# API 文档配置（SpringDoc OpenAPI）
-# ============================================
+# API 文档配置（SpringDoc API）
 springdoc:
   swagger-ui:
-    # Swagger UI 访问路径
     path: /swagger-ui.html
 
-# ============================================
 # Resilience4j 限流配置
-# ============================================
 resilience4j:
   ratelimiter:
     instances:
       # API 全局限流：每秒 100 次请求
       api:
-        # 每个周期允许的请求数
         limitForPeriod: 100
-        # 周期时长
         limitRefreshPeriod: 1s
-        # 超时等待时间（超过限流时等待 500ms）
         timeoutDuration: 500ms
         # 是否启用限流
         registerHealthIndicator: true
-        # 事件消费者缓冲区大小
         eventConsumerBufferSize: 100
 
       # 问答接口限流：每秒 20 次请求（防止恶意刷接口）
@@ -126,33 +94,25 @@ resilience4j:
         registerHealthIndicator: true
         eventConsumerBufferSize: 20
 
-# ============================================
 # AI 网关配置
-# ============================================
 ai:
   gateway:
-    # 响应缓存配置
     cache-ttl: 10m              # 缓存过期时间：10 分钟
     conversation-ttl: 2h        # 对话上下文过期时间：2 小时
     max-history-messages: 16    # 最大历史消息数
 
     # 安全认证配置
     security:
-      # 是否启用 API 认证（可通过环境变量覆盖）
       enabled: ${AI_AUTH_ENABLED}
-      # API 认证令牌（逗号分隔多个）
       tokens: ${AI_GATEWAY_TOKENS}
       # 敏感词过滤配置
       sensitive-word:
-        # 是否启用敏感词过滤
         enabled: true
       # Prompt 注入防护配置
       prompt-injection:
-        # 是否启用 Prompt 注入防护
         enabled: true
       # XSS 防护配置
       xss:
-        # 是否启用 XSS 防护
         enabled: true
         # 是否拦截可疑请求（true 拦截，false 清洗）
         block-mode: false
@@ -165,60 +125,44 @@ ai:
 
     # RAG 知识库配置
     rag:
-      # 向量数据库类型
       vector-store-type: milvus
       # 集合名称
       collection-name: trade_knowledge
       # 向量维度（需与 Embedding 模型输出维度一致，DashScope text-embedding-v4 默认 1024 维）
       dimension: 1024
-      # 最大返回结果数（⭐ 优化：从10减少到5，减少冗余上下文）
+      # 最大返回结果数
       max-results: 5
-      # 相似度阈值（⭐ 优化：从0.5提高到0.6，只保留高相似度结果）
+      # 相似度阈值
       similarity-threshold: 0.6
       # BM25 索引磁盘存储路径（FSDirectory，持久化存储，重启免重建）
       bm25-index-path: /app/data/bm25-index
       # 文本分块配置
-      chunk-size: 200      # 每块字符数      若是：结构化文档 200 ~ 400 汉字（别超过 400）
+      chunk-size: 200      # 每块字符数
       chunk-overlap: 35    # 块间重叠字符数   仅用来防语义截断，不要过大
 
       # Embedding 配置 —— 主模型 + 降级模型
       embedding:
-        # 主模型：阿里巴巴 DashScope text-embedding-v4（⭐ 1024 维，多语言/长文本语义更强）
         model: text-embedding-v4
-        # Embedding API 基础 URL（DashScope 兼容 OpenAI /v1/embeddings）
         base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-        # Embedding API 路径
         path: /embeddings
-        # API 密钥（从环境变量读取，保护敏感信息）
+        # API 密钥
         api-key: ${DASHSCOPE_API_KEY}
-        # 编码格式：float 或 base64
         encoding-format: float
-        # 请求超时时间：30 秒
         timeout: 30s
-        # 重试次数：2 次
         max-retries: 2
-        # 单价：0.05 元/百万 token（DashScope text-embedding-v4 官方价格）
+        # 单价：0.05 元/百万 token（text-embedding-v4 官方价格）
         price-per-million-tokens: 0.05
-        # 月度预算：100 元
+        # 月度预算 元
         monthly-budget: 100.0
 
-      # 降级 Embedding 配置 —— DashScope text-embedding-v3（同一供应商，兼容性更好）
       fallback-embedding:
-        # 降级模型：DashScope text-embedding-v3（1024维，多语言语义增强）
         model: text-embedding-v3
-        # DashScope API 地址（与主模型相同）
         base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-        # Embedding API 路径
         path: /embeddings
-        # API 密钥（与主模型相同）
         api-key: ${DASHSCOPE_API_KEY}
-        # 编码格式：float
         encoding-format: float
-        # 请求超时时间：30 秒
         timeout: 30s
-        # 重试次数：2 次
         max-retries: 2
-        # 降级模型单价：0.05 元/百万 token（DashScope text-embedding-v4 官方价格）
         price-per-million-tokens: 0.05
 
       # 健康检查配置 —— 定期检查 Embedding 服务可用性
@@ -236,24 +180,19 @@ ai:
       cost-monitor:
         # 是否启用成本监控
         enabled: true
-        # 月度预算：1000 元
-        monthly-budget: 1000.0
+        # 月度预算：100 元
+        monthly-budget: 100.0
         # 预算告警阈值：80%
         budget-alert-threshold: 80
         # 是否记录每次调用的详细日志（调试用）
         log-detailed-usage: true
       # Milvus 配置
       milvus:
-        # Milvus 服务地址
         host: ${MILVUS_HOST}
-        # gRPC 端口（默认 19530）
         port: ${MILVUS_PORT}
-        # 数据库名称（Milvus 2.x 支持多数据库隔离）
         database: ${MILVUS_DATABASE}
-        # 认证信息
         username: ${MILVUS_USERNAME}
         password: ${MILVUS_PASSWORD}
-        # 连接超时时间
         timeout: 10s
 
       # 混合检索配置（向量 + BM25）

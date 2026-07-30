@@ -1,58 +1,35 @@
-# ============================================
-# 外贸智能助理 - Docker Compose 基础设施配置
-# ============================================
-# 启动命令: docker compose up -d
-# 停止命令: docker compose down
-# 查看日志: docker compose logs -f [服务名]
+# 外贸智能助理
 
 services:
-  # ============================================
-  # 1. etcd - 分布式键值存储（Milvus 元数据存储）
-  # ============================================
-  # 作用：存储 Milvus 的元数据（集合schema、索引信息等）
-  # 端口：2379（客户端通信）
   etcd:
     image: quay.io/coreos/etcd:v3.5.5
     container_name: smart-trade-etcd
     environment:
-      # 自动压缩模式：按版本号清理历史数据
       - ETCD_AUTO_COMPACTION_MODE=revision
-      # 保留最近 1000 个版本
       - ETCD_AUTO_COMPACTION_RETENTION=1000
-      # 后端存储配额：4GB
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
-      # 每 50000 次写入做一次快照
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
-      # 数据持久化：将 etcd 数据目录挂载到匿名卷
       - etcd-data:/etcd
-    # 启动命令：监听所有网络接口，允许外部连接
     command: etcd -advertise-client-urls=http://0.0.0.0:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - app-network  # 加入 app-network，可通过服务名互相访问
-    # 健康检查：每 30s 检查一次，失败 3 次标记为不健康
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
       interval: 30s
       timeout: 20s
       retries: 3
 
-  # ============================================
-  # 2. MinIO - 对象存储（文件/图片存储）
-  # ============================================
-  # 作用：存储原始上传的 PDF/DOCX 文件
-  # 端口：9000（S3 API）、9001（Web 控制台）
-  # 访问：http://localhost:9001（账号/密码: minioadmin）
+  #MinIO - 对象存储（文件存储）
   minio:
     image: minio/minio:RELEASE.2023-03-20T20-16-18Z
     container_name: smart-trade-minio
     environment:
-      # MinIO 认证信息（默认 minioadmin/minioadmin，生产环境需修改）
+      # MinIO 认证信息
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
     volumes:
       # Bind Mount：数据持久化到宿主机的 ./minio-data 目录
-      # 优点：可以直接在宿主机查看/备份文件
       - ./minio-data:/minio_data
     command: minio server /minio_data --console-address ":9001"
     ports:
@@ -66,27 +43,18 @@ services:
       timeout: 20s
       retries: 3
 
-  # ============================================
-  # 3. Milvus - 向量数据库（向量存储与检索）
-  # ============================================
-  # 作用：存储文档 Embedding 向量，支持相似度搜索和标量过滤
-  # 端口：19530（gRPC，应用 SDK 使用）、9091（HTTP，健康检查）
-  # 模式：standalone（单节点，开发环境适用）
+  #  Milvus - 向量数据库（向量存储与检索）
   milvus:
     image: milvusdb/milvus:v2.4.12
     container_name: smart-trade-milvus
-    # standalone 模式：所有组件（root coord/data coord/query coord/index coord）合一
     command: ["milvus", "run", "standalone"]
     ports:
-      - "19530:19530"  # gRPC 端口（Milvus Java SDK 连接）
-      - "9091:9091"    # HTTP 端口（健康检查 + REST API）
+      - "19530:19530"
+      - "9091:9091"
     volumes:
-      # 命名卷持久化向量数据（匿名卷或命名卷比 Bind Mount 性能更好）
       - milvus-data:/var/lib/milvus
     environment:
-      # 依赖 etcd 存储元数据
       - ETCD_ENDPOINTS=etcd:2379
-      # 依赖 MinIO 存储向量文件（段文件、索引文件）
       - MINIO_ADDRESS=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
@@ -105,11 +73,7 @@ services:
       timeout: 20s
       retries: 3
 
-  # ============================================
-  # 4. Redis - 内存数据库（缓存 + 会话）
-  # ============================================
-  # 作用：Embedding 缓存、RAG 回答缓存、对话上下文缓存
-  # 端口：6379
+  # Redis - 内存数据库（缓存 + 会话）
   redis:
     image: redis:7-alpine
     container_name: smart-trade-redis
@@ -119,7 +83,6 @@ services:
       # 命名卷持久化 RDB/AOF 数据
       - redis-data:/data
     # --appendonly yes：开启 AOF 持久化（每条写命令追加到日志）
-    # 优势：数据更安全，重启后可恢复；劣势：写入性能略降
     command: redis-server --appendonly yes
     networks:
       - app-network
@@ -129,43 +92,34 @@ services:
       timeout: 5s
       retries: 5
 
-  # ============================================
-  # 5. App - Spring Boot 应用（外贸智能助理）
-  # ============================================
-  # 作用：业务逻辑 + AI 网关 + RAG + 前端页面
-  # 端口：8080
+  # 外贸智能助理 （Spring Boot 应用）
   app:
-    # 构建配置：基于当前目录的 Dockerfile 构建镜像
+    # 基于当前目录的 Dockerfile 构建镜像
     build:
-      context: .          # 构建上下文（当前目录）
+      context: .
       dockerfile: Dockerfile  # Dockerfile 路径
     container_name: smart-trade-app
     ports:
       - "8080:8080"
-    # 环境变量：从 .env 文件一键加载（推荐敏感信息放这里）
+    # 环境变量：从 .env 文件一键加载（敏感信息放这里）
     env_file:
       - .env
     environment:
       # Spring 配置文件：激活 docker profile（覆盖 application.yml 中的默认配置）
       - SPRING_PROFILES_ACTIVE=docker
       - SERVER_PORT=8080
-      # Milvus 连接配置（服务名 milvus → Docker DNS 自动解析为容器 IP）
       - AI_GATEWAY_RAG_MILVUS_HOST=milvus
       - AI_GATEWAY_RAG_MILVUS_PORT=19530
       - AI_GATEWAY_RAG_MILVUS_DATABASE=default
-      # Redis 连接配置
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      # MinIO 连接配置
       - MINIO_ENDPOINT=http://minio:9000
       # JVM 参数：堆内存 512MB~1GB，使用 G1 垃圾回收器
       - JAVA_OPTS=-Xms1024m -Xmx1024m -XX:+UseG1GC
     volumes:
-      # 应用数据持久化（上传文件缓存等）
       - app-data:/app/data
-      # BM25 索引持久化（磁盘索引，重启免重建）
+      # BM25 索引及日志持久化（磁盘索引，重启免重建）
       - bm25-index-data:/app/data/bm25-index
-      # 日志持久化（方便宿主机查看日志）
       - app-logs:/app/logs
     depends_on:
       # 启动顺序：Redis 和 Milvus 都健康后才启动应用
@@ -178,10 +132,8 @@ services:
     # 重启策略：除非手动停止，否则自动重启（生产环境推荐）
     restart: unless-stopped
 
-# ============================================
+
 # 数据卷（Volumes）- 持久化存储
-# ============================================
-# Docker 管理的匿名卷/命名卷，数据独立于容器生命周期
 volumes:
   etcd-data:    # etcd 元数据
   milvus-data:  # Milvus 向量数据
@@ -190,12 +142,8 @@ volumes:
   bm25-index-data:  # BM25 磁盘索引（持久化，重启免重建）
   app-logs:     # 应用日志
 
-# ============================================
 # 网络（Networks）- 容器间通信
-# ============================================
-# 桥接网络：所有容器在同一二层网络，可通过服务名互访
-# 例如：app 容器中访问 redis，直接用 hostname "redis" 即可解析
+# 桥接网络：所有容器在同一二层网络，可通过服务名互访(例如：app 容器中访问 redis，直接用 hostname "redis" 即可解析)
 networks:
   app-network:
-    driver: bridge  # 桥接模式（单机开发环境）
-    # 生产环境可考虑 overlay 模式（跨主机 Swarm 集群）
+    driver: bridge  # 桥接模式（单机开发环境，生产环境可考虑 overlay 模式（跨主机 Swarm 集群）
