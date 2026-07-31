@@ -119,7 +119,7 @@ services:
     volumes:
       - app-data:/app/data
       # BM25 索引及日志持久化（磁盘索引，重启免重建）
-      - bm25-index-data:/app/data/bm25-index
+#      - bm25-index-data:/app/data/bm25-index
       - app-logs:/app/logs
     depends_on:
       # 启动顺序：Redis 和 Milvus 都健康后才启动应用
@@ -139,7 +139,7 @@ volumes:
   milvus-data:  # Milvus 向量数据
   redis-data:   # Redis AOF/RDB 持久化数据
   app-data:     # 应用数据
-  bm25-index-data:  # BM25 磁盘索引（持久化，重启免重建）
+#  bm25-index-data:  # BM25 磁盘索引（持久化，重启免重建）
   app-logs:     # 应用日志
 
 # 网络（Networks）- 容器间通信
