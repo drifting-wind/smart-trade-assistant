@@ -538,6 +538,11 @@ public class AiGatewayProperties {
         @Max(1)
         private double similarityThreshold = 0.7;
 
+        /** 质量门控阈值，Rerank 后最高分低于此值则返回"未找到相关信息"。范围 0~1 */
+        @Min(0)
+        @Max(1)
+        private double qualityThreshold = 0.6;
+
         /** 文本分块大小（字符数），每块约 500 字符 */
         @Min(100)
         @Max(5000)
@@ -616,6 +621,14 @@ public class AiGatewayProperties {
 
         public void setSimilarityThreshold(double similarityThreshold) {
             this.similarityThreshold = similarityThreshold;
+        }
+
+        public double getQualityThreshold() {
+            return qualityThreshold;
+        }
+
+        public void setQualityThreshold(double qualityThreshold) {
+            this.qualityThreshold = qualityThreshold;
         }
 
         public int getChunkSize() {

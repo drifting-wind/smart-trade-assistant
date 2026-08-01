@@ -134,6 +134,8 @@ ai:
       max-results: 5
       # 相似度阈值
       similarity-threshold: 0.6
+      # 质量门控阈值（Rerank 后最高分低于此值则返回"未找到相关信息"）
+      quality-threshold: 0.3
       # BM25 索引磁盘存储路径（FSDirectory，持久化存储，重启免重建）
       bm25-index-path: /app/data/bm25-index
       # 文本分块配置

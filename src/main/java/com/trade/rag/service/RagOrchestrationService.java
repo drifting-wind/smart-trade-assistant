@@ -61,6 +61,7 @@ public class RagOrchestrationService {
     private final AiRequestMapper.ChatOrchestrationService chatService;
     private final PromptFactory promptFactory;
     private final int maxResults;
+    private final double qualityThreshold;
     private final RedisTemplate<String, Object> redisTemplate;
 
     public RagOrchestrationService(
@@ -80,6 +81,7 @@ public class RagOrchestrationService {
         this.chatService = chatService;
         this.promptFactory = promptFactory;
         this.maxResults = properties.getRag().getMaxResults();
+        this.qualityThreshold = properties.getRag().getQualityThreshold();
         this.redisTemplate = redisTemplate;
     }
 
@@ -117,7 +119,7 @@ public class RagOrchestrationService {
                                     log.info("📚 混合检索完成，共 {} 条结果", matches.size());
 
                                     // ⭐ 优化：如果检索结果质量太差，直接返回"未找到"
-                                    if (matches.isEmpty() || matches.get(0).score() < 0.6) {
+                                    if (matches.isEmpty() || matches.get(0).score() < qualityThreshold) {
                                         log.info("⚠️ 检索结果质量低于阈值，跳过 LLM 调用");
                                         return Mono.just(ChatResponse.noAnswer(question));
                                     }
@@ -210,7 +212,7 @@ public class RagOrchestrationService {
                                                 .flatMapMany(reranked -> {
                                                     log.info("🔄 Rerank 完成，最终 {} 条结果", reranked.size());
                                                     // 如果检索结果质量太差，返回"未找到相关信息"
-                                                    if (reranked.isEmpty() || reranked.get(0).score() < 0.6) {
+                                                    if (reranked.isEmpty() || reranked.get(0).score() < qualityThreshold) {
                                                         log.info("⚠️ 检索结果质量低于阈值，跳过 AI 调用");
                                                         String eventId = UUID.randomUUID().toString();
                                                         @SuppressWarnings("unchecked")
@@ -446,7 +448,14 @@ public class RagOrchestrationService {
         int index = 1;
 
         for (SearchMatch match : matches) {
-            String title = match.metadata().getOrDefault("title", "未命名文档").toString();
+            // 优先取 title，其次 originalFileName，最后兜底"未命名文档"
+            String title = match.metadata().getOrDefault("title", "").toString();
+            if (title.isBlank()) {
+                title = match.metadata().getOrDefault("originalFileName", "").toString();
+            }
+            if (title.isBlank()) {
+                title = "未命名文档";
+            }
             String dedupKey = match.documentId() + "|" + title;
 
             // 如果已经添加过相同文档+标题的引用，跳过
